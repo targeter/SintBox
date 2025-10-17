@@ -5,6 +5,8 @@
 #include "Puzzle.h"
 
 // Calculator-style code entry with rightmost "cursor" driven by 7 toggles on a PCF8574.
+// - P0..P6 control 7-segment display segments a..g
+// - P7 is the button input (to GND, with internal pull-up)
 // - Cursor always shows live segments on rightmost digit
 // - Button press: shift stored digits left, stuff snapshot into the stored tail (visual "double")
 // - On 4th press: evaluate code; success -> celebrate + lock solid, failure -> angry flash + 0000 + reset
@@ -13,24 +15,31 @@ public:
   SevenSegCodePuzzle(
     // TM1637 pins
     uint8_t pinCLK, uint8_t pinDIO,
-    // Button pin (to GND, INPUT_PULLUP)
-    uint8_t pinBtn,
     // PCF8574 I2C address (e.g., 0x20 with A0/A1/A2 to GND)
     uint8_t pcfAddr,
     // Correct 4-digit code
     int correctCode
   )
-  : _display(pinCLK, pinDIO), _pinBtn(pinBtn), _pcfAddr(pcfAddr), _correct(correctCode) {}
+  : _display(pinCLK, pinDIO), _pcfAddr(pcfAddr), _correct(correctCode) {}
 
   void begin() override {
+    Serial.println(F("SevenSegCodePuzzle: Starting initialization..."));
+    
     Wire.begin();
+    Serial.println(F("  Wire initialized"));
+    
     // PCF8574 inputs with pull-ups
-    Wire.beginTransmission(_pcfAddr); Wire.write(0xFF); Wire.endTransmission();
-
-    pinMode(_pinBtn, INPUT_PULLUP);
+    Wire.beginTransmission(_pcfAddr); 
+    Wire.write(0xFF); 
+    uint8_t result = Wire.endTransmission();
+    Serial.print(F("  PCF8574 setup (addr=0x"));
+    Serial.print(_pcfAddr, HEX);
+    Serial.print(F("), result="));
+    Serial.println(result);
 
     _display.setBrightness(7,true);
     _display.clear();
+    Serial.println(F("  TM1637 display initialized"));
 
     // reset model
     _stored[0]=_stored[1]=_stored[2]=-1;
@@ -39,12 +48,14 @@ public:
     _lastCursorBlink=millis();
     _state = State::PREVIEW;
     _solved=false;
+    
+    Serial.println(F("SevenSegCodePuzzle: Initialization complete"));
   }
 
   void update(uint32_t now) override {
     if (_state == State::LOCKED) { return; } // solid display, ignore input when solved
 
-    const uint8_t btn = digitalRead(_pinBtn);
+    const uint8_t btn = readButtonState();
     const uint8_t liveMask = readSwitchSegments();
 
     // edge-debounce for button (falling edge)
@@ -147,7 +158,6 @@ public:
 private:
   // ===== pins / deps =====
   TM1637Display _display;
-  uint8_t _pinBtn;
   uint8_t _pcfAddr;
   int     _correct;
 
@@ -205,6 +215,14 @@ private:
     if ((raw & (1<<5)) == 0) m |= SEG_F;
     if ((raw & (1<<6)) == 0) m |= SEG_G;
     return m;
+  }
+
+  uint8_t readButtonState() {
+    Wire.requestFrom((int)_pcfAddr, 1);
+    if (!Wire.available()) return HIGH;
+    uint8_t raw = Wire.read();
+    // Button is on P7 (bit 7), return LOW when pressed (input pulled low)
+    return (raw & (1<<7)) ? HIGH : LOW;
   }
 
   static bool maskToDigit(uint8_t mask, uint8_t &dOut) {

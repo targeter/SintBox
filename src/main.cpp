@@ -8,9 +8,9 @@
 // TM1637 on D2 (CLK) and D3 (DIO)
 constexpr uint8_t TM_CLK = 2;
 constexpr uint8_t TM_DIO = 3;
-// Button on D4 to GND (INPUT_PULLUP)
-constexpr uint8_t BTN_PIN = 4;
 // PCF8574 address (A0..A2 = GND → 0x20)
+// - P0..P6 control 7-segment switches for digits 0-9
+// - P7 is button input (to GND, uses internal pull-up)
 constexpr uint8_t PCF_ADDR = 0x20;
 
 // Correct code for this puzzle
@@ -23,7 +23,7 @@ const uint8_t SERVO_PIN = 9;
 const uint8_t LOCK_ANGLE = 0, UNLOCK_ANGLE = 140;
 
 // Instantiate puzzles
-SevenSegCodePuzzle pSafeDial(TM_CLK, TM_DIO, BTN_PIN, PCF_ADDR, SAFE_CODE);
+SevenSegCodePuzzle pSafeDial(TM_CLK, TM_DIO, PCF_ADDR, SAFE_CODE);
 
 // Register them
 Puzzle* puzzles[NUM_PUZZLES] = { &pSafeDial  };
@@ -33,10 +33,15 @@ PuzzleManager<NUM_PUZZLES> manager(PUZZLE_LED_PINS, SERVO_PIN, LOCK_ANGLE, UNLOC
 
 void setup() {
   Serial.begin(115200);
+  delay(1000); // Give serial time to initialize
+  Serial.println(F("*** SERIAL DEBUG TEST - SETUP STARTING ***"));
   Serial.println(F("=== SintBox Puzzle System Starting ==="));
   
+  Serial.println(F("About to attach puzzles..."));
   manager.attach(puzzles);
+  Serial.println(F("Puzzles attached, calling manager.begin()..."));
   manager.begin();
+  Serial.println(F("manager.begin() completed!"));
   
   Serial.print(F("Initialized "));
   Serial.print(NUM_PUZZLES);
@@ -45,7 +50,6 @@ void setup() {
 }
 
 void loop() {
-  static uint32_t lastDebug = 0;
   uint32_t now = millis();
   
   // Handle serial commands
@@ -116,17 +120,6 @@ void loop() {
   }
   
   manager.update(now);
-  
-  // Debug output every 5 seconds
-  if (now - lastDebug >= 1000) {
-    Serial.print(F("Status: "));
-    if (manager.allSolved()) {
-      Serial.println(F("ALL SOLVED! Box unlocked."));
-    } else {
-      Serial.println(F("Puzzles active..."));
-    }
-    lastDebug = now;
-  }
   
   // add DFPlayer tick, other housekeeping here later
 }
