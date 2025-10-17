@@ -1,14 +1,22 @@
 #pragma once
 #include <Arduino.h>
+#include <Wire.h>
 #include <Servo.h>
 #include "Puzzle.h"
 
 template<size_t N>
 class PuzzleManager {
 public:
+  // Constructor for Arduino pin-based LEDs
   PuzzleManager(uint8_t const (&ledPins)[N], uint8_t servoPin, uint8_t lockedAngle=0, uint8_t unlockedAngle=90)
-  : _servoPin(servoPin), _lockedAngle(lockedAngle), _unlockedAngle(unlockedAngle) {
+  : _servoPin(servoPin), _lockedAngle(lockedAngle), _unlockedAngle(unlockedAngle), _usePCF8574(false) {
     for (size_t i=0;i<N;i++) _ledPins[i]=ledPins[i];
+  }
+  
+  // Constructor for PCF8574-based LEDs
+  PuzzleManager(uint8_t pcfAddr, uint8_t servoPin, uint8_t lockedAngle=0, uint8_t unlockedAngle=90)
+  : _servoPin(servoPin), _lockedAngle(lockedAngle), _unlockedAngle(unlockedAngle), _usePCF8574(true), _pcfAddr(pcfAddr) {
+    // LEDs will be on PCF8574 pins P0..P7
   }
 
   void attach(Puzzle* const (&puzzles)[N]) {
@@ -17,13 +25,32 @@ public:
 
   void begin() {
     Serial.println(F("PuzzleManager: Initializing..."));
+    
+    if (_usePCF8574) {
+      Wire.begin();
+      Serial.print(F("  PCF8574 LED controller at address 0x"));
+      Serial.print(_pcfAddr, HEX);
+      Serial.println();
+      
+      // Initialize all LEDs to OFF (active LOW: HIGH = OFF)
+      _pcfLedState = 0xFF;
+      updatePCF8574();
+    }
+    
     for (size_t i=0;i<N;i++) {
-      pinMode(_ledPins[i], OUTPUT);
-      digitalWrite(_ledPins[i], LOW);
-      Serial.print(F("  LED "));
-      Serial.print(i);
-      Serial.print(F(" on pin "));
-      Serial.println(_ledPins[i]);
+      if (!_usePCF8574) {
+        pinMode(_ledPins[i], OUTPUT);
+        digitalWrite(_ledPins[i], LOW);
+        Serial.print(F("  LED "));
+        Serial.print(i);
+        Serial.print(F(" on pin "));
+        Serial.println(_ledPins[i]);
+      } else {
+        Serial.print(F("  LED "));
+        Serial.print(i);
+        Serial.print(F(" on PCF8574 pin P"));
+        Serial.println(i);
+      }
       
       _puzzles[i]->begin();
       Serial.print(F("  Puzzle "));
@@ -68,9 +95,20 @@ public:
 
       const int lvl = _puzzles[i]->ledBrightness();
       if (lvl >= 0) {
-        analogWrite(_ledPins[i], (uint8_t)lvl);   // puzzle drives its own PWM
+        // Puzzle wants to control its own PWM
+        if (!_usePCF8574) {
+          analogWrite(_ledPins[i], (uint8_t)lvl);
+        } else {
+          // PCF8574 doesn't support PWM, use simple on/off based on threshold
+          setLED(i, lvl > 127);
+        }
       } else {
-        digitalWrite(_ledPins[i], s ? HIGH : LOW); // default on/off
+        // Default on/off based on solved state
+        if (!_usePCF8574) {
+          digitalWrite(_ledPins[i], s ? HIGH : LOW);
+        } else {
+          setLED(i, s);
+        }
       }
 
       if (s) solvedCount++;
@@ -100,6 +138,40 @@ public:
   void attachServo() {
     Serial.println(F("Servo: Re-attaching servo"));
     _servo.attach(_servoPin);
+  }
+
+  void testLEDs() {
+    if (!_usePCF8574) {
+      Serial.println(F("LED test not available - using Arduino pins"));
+      return;
+    }
+    
+    Serial.println(F("Testing PCF8574 LEDs..."));
+    
+    // Test each LED individually
+    for (size_t i = 0; i < 8; i++) {
+      Serial.print(F("  Testing LED P"));
+      Serial.println(i);
+      setLED(i, true);
+      delay(300);
+      setLED(i, false);
+      delay(100);
+    }
+    
+    // Test all LEDs on
+    Serial.println(F("  All LEDs ON"));
+    for (size_t i = 0; i < 8; i++) {
+      setLED(i, true);
+    }
+    delay(1000);
+    
+    // Test all LEDs off
+    Serial.println(F("  All LEDs OFF"));
+    for (size_t i = 0; i < 8; i++) {
+      setLED(i, false);
+    }
+    
+    Serial.println(F("LED test complete"));
   }
 
   void lock() { 
@@ -145,6 +217,33 @@ public:
   }
 
 private:
+  void setLED(size_t index, bool state) {
+    if (!_usePCF8574) return; // Only for PCF8574 mode
+    if (index >= 8) return;   // PCF8574 only has 8 pins
+    
+    // Invert logic for active LOW LEDs (cathode connected to PCF8574)
+    if (state) {
+      _pcfLedState &= ~(1 << index);  // Clear bit (LOW = LED ON)
+    } else {
+      _pcfLedState |= (1 << index);   // Set bit (HIGH = LED OFF)
+    }
+    updatePCF8574();
+  }
+  
+  void updatePCF8574() {
+    if (!_usePCF8574) return;
+    
+    Wire.beginTransmission(_pcfAddr);
+    Wire.write(_pcfLedState);
+    uint8_t result = Wire.endTransmission();
+    
+    if (result != 0) {
+      Serial.print(F("PCF8574 LED update failed: "));
+      Serial.println(result);
+    }
+  }
+
+private:
   Puzzle* _puzzles[N]{};
   uint8_t _ledPins[N]{};
   uint8_t _servoPin;
@@ -152,4 +251,9 @@ private:
   uint8_t _currentAngle = 255; // Invalid initial value to force first move
   bool _allSolved=false;
   Servo _servo;
+  
+  // PCF8574 LED support
+  bool _usePCF8574;
+  uint8_t _pcfAddr;
+  uint8_t _pcfLedState = 0xFF; // Active LOW: start with all LEDs OFF
 };

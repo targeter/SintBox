@@ -8,17 +8,19 @@
 // TM1637 on D2 (CLK) and D3 (DIO)
 constexpr uint8_t TM_CLK = 2;
 constexpr uint8_t TM_DIO = 3;
-// PCF8574 address (A0..A2 = GND → 0x20)
+// PCF8574 address for puzzle controls (A0..A2 = GND → 0x20)
 // - P0..P6 control 7-segment switches for digits 0-9
 // - P7 is button input (to GND, uses internal pull-up)
 constexpr uint8_t PCF_ADDR = 0x20;
+// PCF8574 address for puzzle status LEDs (A0,A1=GND, A2=VCC → 0x2A)
+// - P0..P7 control status LEDs for puzzles 0-7
+constexpr uint8_t PCF_LED_ADDR = 0x21;
 
 // Correct code for this puzzle
 constexpr int SAFE_CODE = 5555;
 
-// Servo + LED indicators
+// Servo configuration
 constexpr size_t NUM_PUZZLES = 1;        // bump to 3–4 as you add more
-const uint8_t PUZZLE_LED_PINS[NUM_PUZZLES] = { 13 }; // LED for this puzzle
 const uint8_t SERVO_PIN = 9;
 const uint8_t LOCK_ANGLE = 0, UNLOCK_ANGLE = 140;
 
@@ -28,8 +30,8 @@ SevenSegCodePuzzle pSafeDial(TM_CLK, TM_DIO, PCF_ADDR, SAFE_CODE);
 // Register them
 Puzzle* puzzles[NUM_PUZZLES] = { &pSafeDial  };
 
-// Manager
-PuzzleManager<NUM_PUZZLES> manager(PUZZLE_LED_PINS, SERVO_PIN, LOCK_ANGLE, UNLOCK_ANGLE);
+// Manager with PCF8574-based LED control
+PuzzleManager<NUM_PUZZLES> manager(PCF_LED_ADDR, SERVO_PIN, LOCK_ANGLE, UNLOCK_ANGLE);
 
 void setup() {
   Serial.begin(115200);
@@ -101,17 +103,21 @@ void loop() {
       } else {
         Serial.println(F("Puzzles active..."));
       }
+    } else if (command == "LEDTEST") {
+      Serial.println(F("*** Testing PCF8574 LEDs ***"));
+      manager.testLEDs();
     } else if (command == "HELP") {
       Serial.println(F("Available commands:"));
-      Serial.println(F("  RESET  - Reset all puzzles"));
-      Serial.println(F("  UNLOCK - Force unlock box"));
-      Serial.println(F("  LOCK   - Force lock box"));
-      Serial.println(F("  SERVO  - Show servo diagnostics"));
-      Serial.println(F("  DETACH - Detach servo (stops ticking)"));
-      Serial.println(F("  ATTACH - Re-attach servo"));
-      Serial.println(F("  STOP   - Force stop servo completely"));
-      Serial.println(F("  STATUS - Show current status"));
-      Serial.println(F("  HELP   - Show this help"));
+      Serial.println(F("  RESET   - Reset all puzzles"));
+      Serial.println(F("  UNLOCK  - Force unlock box"));
+      Serial.println(F("  LOCK    - Force lock box"));
+      Serial.println(F("  SERVO   - Show servo diagnostics"));
+      Serial.println(F("  DETACH  - Detach servo (stops ticking)"));
+      Serial.println(F("  ATTACH  - Re-attach servo"));
+      Serial.println(F("  STOP    - Force stop servo completely"));
+      Serial.println(F("  STATUS  - Show current status"));
+      Serial.println(F("  LEDTEST - Test PCF8574 status LEDs"));
+      Serial.println(F("  HELP    - Show this help"));
     } else if (command.length() > 0) {
       Serial.print(F("Unknown command: "));
       Serial.print(command);
