@@ -148,26 +148,31 @@ public:
     
     Serial.println(F("Testing PCF8574 LEDs..."));
     
-    // Test each LED individually
-    for (size_t i = 0; i < 8; i++) {
-      Serial.print(F("  Testing LED P"));
-      Serial.println(i);
+    // Test each LED individually up to the number of puzzles we have
+    for (size_t i = 0; i < N; i++) {
+      Serial.print(F("  Testing puzzle LED "));
+      Serial.print(i);
+      Serial.print(F(" (P"));
+      Serial.print(i);
+      Serial.println(F(")"));
       setLED(i, true);
-      delay(300);
+      delay(500);
       setLED(i, false);
-      delay(100);
+      delay(200);
     }
     
-    // Test all LEDs on
-    Serial.println(F("  All LEDs ON"));
-    for (size_t i = 0; i < 8; i++) {
+    // Test all puzzle LEDs on
+    Serial.print(F("  All "));
+    Serial.print(N);
+    Serial.println(F(" puzzle LEDs ON"));
+    for (size_t i = 0; i < N; i++) {
       setLED(i, true);
     }
     delay(1000);
     
-    // Test all LEDs off
-    Serial.println(F("  All LEDs OFF"));
-    for (size_t i = 0; i < 8; i++) {
+    // Test all puzzle LEDs off
+    Serial.println(F("  All puzzle LEDs OFF"));
+    for (size_t i = 0; i < N; i++) {
       setLED(i, false);
     }
     
