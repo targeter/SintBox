@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <Servo.h>
+#include <Adafruit_MCP23X17.h>
 #include "Puzzle.h"
 
 template<size_t N>
@@ -9,14 +10,20 @@ class PuzzleManager {
 public:
   // Constructor for Arduino pin-based LEDs
   PuzzleManager(uint8_t const (&ledPins)[N], uint8_t servoPin, uint8_t lockedAngle=0, uint8_t unlockedAngle=90)
-  : _servoPin(servoPin), _lockedAngle(lockedAngle), _unlockedAngle(unlockedAngle), _usePCF8574(false) {
+  : _servoPin(servoPin), _lockedAngle(lockedAngle), _unlockedAngle(unlockedAngle), _usePCF8574(false), _useMCP23017(false) {
     for (size_t i=0;i<N;i++) _ledPins[i]=ledPins[i];
   }
   
   // Constructor for PCF8574-based LEDs
   PuzzleManager(uint8_t pcfAddr, uint8_t servoPin, uint8_t lockedAngle=0, uint8_t unlockedAngle=90)
-  : _servoPin(servoPin), _lockedAngle(lockedAngle), _unlockedAngle(unlockedAngle), _usePCF8574(true), _pcfAddr(pcfAddr) {
+  : _servoPin(servoPin), _lockedAngle(lockedAngle), _unlockedAngle(unlockedAngle), _usePCF8574(true), _useMCP23017(false), _pcfAddr(pcfAddr) {
     // LEDs will be on PCF8574 pins P0..P7
+  }
+  
+  // Constructor for MCP23017-based LEDs (using pins A3-A7 for 5 puzzle LEDs)
+  PuzzleManager(uint8_t mcpAddr, uint8_t servoPin, uint8_t lockedAngle, uint8_t unlockedAngle, bool useMCP23017)
+  : _servoPin(servoPin), _lockedAngle(lockedAngle), _unlockedAngle(unlockedAngle), _usePCF8574(false), _useMCP23017(useMCP23017), _mcpAddr(mcpAddr) {
+    // LEDs will be on MCP23017 pins GPA3-GPA7 (pins 3-7 of port A)
   }
 
   void attach(Puzzle* const (&puzzles)[N]) {
@@ -35,21 +42,43 @@ public:
       // Initialize all LEDs to OFF (active LOW: HIGH = OFF)
       _pcfLedState = 0xFF;
       updatePCF8574();
+    } else if (_useMCP23017) {
+      Wire.begin();
+      Serial.print(F("  MCP23017 LED controller at address 0x"));
+      Serial.print(_mcpAddr, HEX);
+      Serial.println();
+      
+      if (!_mcp.begin_I2C(_mcpAddr)) {
+        Serial.println(F("  ERROR: Failed to initialize MCP23017!"));
+        return;
+      }
+      
+      // Configure pins A3-A7 (3-7) as outputs for LEDs (only need 5 pins for 5 puzzles max)
+      for (uint8_t pin = 3; pin <= 7; pin++) {
+        _mcp.pinMode(pin, OUTPUT);
+        _mcp.digitalWrite(pin, HIGH);  // Active LOW: HIGH = LED OFF
+      }
+      Serial.println(F("  MCP23017 pins A3-A7 configured as outputs (LEDs OFF)"));
     }
     
     for (size_t i=0;i<N;i++) {
-      if (!_usePCF8574) {
+      if (!_usePCF8574 && !_useMCP23017) {
         pinMode(_ledPins[i], OUTPUT);
         digitalWrite(_ledPins[i], LOW);
         Serial.print(F("  LED "));
         Serial.print(i);
-        Serial.print(F(" on pin "));
+        Serial.print(F(" on Arduino pin "));
         Serial.println(_ledPins[i]);
-      } else {
+      } else if (_usePCF8574) {
         Serial.print(F("  LED "));
         Serial.print(i);
         Serial.print(F(" on PCF8574 pin P"));
         Serial.println(i);
+      } else if (_useMCP23017) {
+        Serial.print(F("  LED "));
+        Serial.print(i);
+        Serial.print(F(" on MCP23017 pin A"));
+        Serial.println(i + 3);  // A3-A7 for puzzles 0-4
       }
       
       _puzzles[i]->begin();
@@ -96,15 +125,15 @@ public:
       const int lvl = _puzzles[i]->ledBrightness();
       if (lvl >= 0) {
         // Puzzle wants to control its own PWM
-        if (!_usePCF8574) {
+        if (!_usePCF8574 && !_useMCP23017) {
           analogWrite(_ledPins[i], (uint8_t)lvl);
         } else {
-          // PCF8574 doesn't support PWM, use simple on/off based on threshold
+          // PCF8574/MCP23017 don't support PWM, use simple on/off based on threshold
           setLED(i, lvl > 127);
         }
       } else {
         // Default on/off based on solved state
-        if (!_usePCF8574) {
+        if (!_usePCF8574 && !_useMCP23017) {
           digitalWrite(_ledPins[i], s ? HIGH : LOW);
         } else {
           setLED(i, s);
@@ -141,20 +170,30 @@ public:
   }
 
   void testLEDs() {
-    if (!_usePCF8574) {
+    if (!_usePCF8574 && !_useMCP23017) {
       Serial.println(F("LED test not available - using Arduino pins"));
       return;
     }
     
-    Serial.println(F("Testing PCF8574 LEDs..."));
+    if (_usePCF8574) {
+      Serial.println(F("Testing PCF8574 LEDs..."));
+    } else if (_useMCP23017) {
+      Serial.println(F("Testing MCP23017 LEDs..."));
+    }
     
     // Test each LED individually up to the number of puzzles we have
     for (size_t i = 0; i < N; i++) {
       Serial.print(F("  Testing puzzle LED "));
       Serial.print(i);
-      Serial.print(F(" (P"));
-      Serial.print(i);
-      Serial.println(F(")"));
+      if (_usePCF8574) {
+        Serial.print(F(" (P"));
+        Serial.print(i);
+        Serial.println(F(")"));
+      } else if (_useMCP23017) {
+        Serial.print(F(" (A"));
+        Serial.print(i + 3);
+        Serial.println(F(")"));
+      }
       setLED(i, true);
       delay(500);
       setLED(i, false);
@@ -223,16 +262,23 @@ public:
 
 private:
   void setLED(size_t index, bool state) {
-    if (!_usePCF8574) return; // Only for PCF8574 mode
-    if (index >= 8) return;   // PCF8574 only has 8 pins
-    
-    // Invert logic for active LOW LEDs (cathode connected to PCF8574)
-    if (state) {
-      _pcfLedState &= ~(1 << index);  // Clear bit (LOW = LED ON)
-    } else {
-      _pcfLedState |= (1 << index);   // Set bit (HIGH = LED OFF)
+    if (_usePCF8574) {
+      if (index >= 8) return;   // PCF8574 only has 8 pins
+      
+      // Invert logic for active LOW LEDs (cathode connected to PCF8574)
+      if (state) {
+        _pcfLedState &= ~(1 << index);  // Clear bit (LOW = LED ON)
+      } else {
+        _pcfLedState |= (1 << index);   // Set bit (HIGH = LED OFF)
+      }
+      updatePCF8574();
+    } else if (_useMCP23017) {
+      if (index >= 5) return;   // Only 5 LEDs supported (A3-A7)
+      
+      uint8_t pin = index + 3;  // Map puzzle index 0-4 to MCP pins A3-A7
+      // Active LOW LEDs: LOW = LED ON, HIGH = LED OFF
+      _mcp.digitalWrite(pin, state ? LOW : HIGH);
     }
-    updatePCF8574();
   }
   
   void updatePCF8574() {
@@ -257,8 +303,11 @@ private:
   bool _allSolved=false;
   Servo _servo;
   
-  // PCF8574 LED support
+  // LED support - multiple options
   bool _usePCF8574;
+  bool _useMCP23017;
   uint8_t _pcfAddr;
+  uint8_t _mcpAddr;
   uint8_t _pcfLedState = 0xFF; // Active LOW: start with all LEDs OFF
+  Adafruit_MCP23X17 _mcp;      // MCP23017 instance
 };

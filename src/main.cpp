@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Servo.h>
+#include <Adafruit_MCP23X17.h>
 #include "PuzzleManager.h"
 #include "SevenSegCodePuzzle.h"
 #include "TiltButtonPuzzle.h"
@@ -11,10 +12,10 @@ constexpr uint8_t TM_DIO = 3;
 // PCF8574 address for puzzle controls (A0..A2 = GND → 0x20)
 // - P0..P6 control 7-segment switches for digits 0-9
 // - P7 is button input (to GND, uses internal pull-up)
-constexpr uint8_t PCF_ADDR = 0x20;
-// PCF8574 address for puzzle status LEDs (A0=VCC, A1,A2=GND → 0x21)
-// - P0..P7 control status LEDs for puzzles 0-7
-constexpr uint8_t PCF_LED_ADDR = 0x21;
+constexpr uint8_t PCF_ADDR = 0x24;
+// MCP23017 address for puzzle status LEDs (A0,A1,A2=GND → 0x20, but use different address to avoid conflict)
+// - A3..A7 control status LEDs for puzzles 0-4
+constexpr uint8_t MCP_LED_ADDR = 0x20;
 
 // Correct code for this puzzle
 constexpr int SAFE_CODE = 8888;
@@ -34,8 +35,11 @@ TiltButtonPuzzle pTiltButton(TILT_PIN);
 // Register them
 Puzzle* puzzles[NUM_PUZZLES] = { &pSafeDial, &pTiltButton };
 
-// Manager with PCF8574-based LED control
-PuzzleManager<NUM_PUZZLES> manager(PCF_LED_ADDR, SERVO_PIN, LOCK_ANGLE, UNLOCK_ANGLE);
+// Manager with MCP23017-based LED control
+PuzzleManager<NUM_PUZZLES> manager(MCP_LED_ADDR, SERVO_PIN, LOCK_ANGLE, UNLOCK_ANGLE, true);
+
+// Global flag to pause manager updates for LED testing
+bool managerPaused = false;
 
 void setup() {
   Serial.begin(115200);
@@ -108,51 +112,118 @@ void loop() {
         Serial.println(F("Puzzles active..."));
       }
     } else if (command == "LEDTEST") {
-      Serial.println(F("*** Testing PCF8574 LEDs ***"));
+      Serial.println(F("*** Testing MCP23017 LEDs ***"));
       manager.testLEDs();
     } else if (command == "LEDRAW") {
-      Serial.println(F("*** Raw PCF8574 LED test ***"));
+      Serial.println(F("*** Raw MCP23017 LED test ***"));
       Wire.begin();
       
-      // Test all LEDs OFF (all pins HIGH for active LOW LEDs)
-      Serial.println(F("All LEDs OFF (0xFF)"));
-      Wire.beginTransmission(0x21);
-      Wire.write(0xFF);
-      uint8_t result = Wire.endTransmission();
-      Serial.print(F("Result: "));
-      Serial.println(result);
-      delay(1000);
-      
-      // Test all LEDs ON (all pins LOW for active LOW LEDs)
-      Serial.println(F("All LEDs ON (0x00)"));
-      Wire.beginTransmission(0x21);
-      Wire.write(0x00);
-      result = Wire.endTransmission();
-      Serial.print(F("Result: "));
-      Serial.println(result);
-      delay(1000);
-      
-      // Test individual LEDs
-      for (int i = 0; i < 8; i++) {
-        uint8_t pattern = ~(1 << i); // Invert for active LOW
-        Serial.print(F("LED "));
-        Serial.print(i);
-        Serial.print(F(" ON (0x"));
-        Serial.print(pattern, HEX);
-        Serial.println(F(")"));
-        Wire.beginTransmission(0x21);
-        Wire.write(pattern);
-        result = Wire.endTransmission();
-        Serial.print(F("Result: "));
-        Serial.println(result);
-        delay(500);
+      // Create temporary MCP23017 instance for raw testing
+      Adafruit_MCP23X17 testMcp;
+      if (!testMcp.begin_I2C(MCP_LED_ADDR)) {
+        Serial.println(F("Failed to initialize MCP23017 for raw test"));
+      } else {
+        Serial.println(F("MCP23017 initialized for raw test"));
+        
+        // Configure pins A3-A7 as outputs
+        for (uint8_t pin = 3; pin <= 7; pin++) {
+          testMcp.pinMode(pin, OUTPUT);
+        }
+        
+        // Test all LEDs OFF (HIGH for active LOW LEDs)
+        Serial.println(F("All LEDs OFF"));
+        for (uint8_t pin = 3; pin <= 7; pin++) {
+          testMcp.digitalWrite(pin, HIGH);
+        }
+        delay(1000);
+        
+        // Test all LEDs ON (LOW for active LOW LEDs)
+        Serial.println(F("All LEDs ON"));
+        for (uint8_t pin = 3; pin <= 7; pin++) {
+          testMcp.digitalWrite(pin, LOW);
+        }
+        delay(1000);
+        
+        // Test individual LEDs (pins A3-A7)
+        for (uint8_t pin = 3; pin <= 7; pin++) {
+          Serial.print(F("LED A"));
+          Serial.print(pin);
+          Serial.println(F(" ON"));
+          
+          // Turn all OFF first
+          for (uint8_t p = 3; p <= 7; p++) {
+            testMcp.digitalWrite(p, HIGH);
+          }
+          // Turn this one ON
+          testMcp.digitalWrite(pin, LOW);
+          delay(500);
+        }
+        
+        // Turn all OFF again
+        Serial.println(F("All LEDs OFF again"));
+        for (uint8_t pin = 3; pin <= 7; pin++) {
+          testMcp.digitalWrite(pin, HIGH);
+        }
       }
+    } else if (command == "ALLON") {
+      Serial.println(F("*** Turning ALL MCP23017 pins ON ***"));
+      Wire.begin();
       
-      // Turn all OFF again
-      Serial.println(F("All LEDs OFF again"));
-      Wire.beginTransmission(0x21);
-      Wire.write(0xFF);
-      Wire.endTransmission();
+      // Create temporary MCP23017 instance for testing all pins
+      Adafruit_MCP23X17 testMcp;
+      if (!testMcp.begin_I2C(MCP_LED_ADDR)) {
+        Serial.println(F("Failed to initialize MCP23017"));
+      } else {
+        // Pause manager to prevent it from interfering with LED testing
+        managerPaused = true;
+        Serial.println(F("Manager paused for LED testing"));
+        Serial.println(F("MCP23017 initialized - turning on ALL pins"));
+        
+        // Configure all 16 pins as outputs (Port A: 0-7, Port B: 8-15)
+        for (uint8_t pin = 0; pin <= 15; pin++) {
+          testMcp.pinMode(pin, OUTPUT);
+          testMcp.digitalWrite(pin, LOW); // Active LOW: LOW = LED ON
+          Serial.print(F("Pin "));
+          if (pin <= 7) {
+            Serial.print(F("A"));
+            Serial.print(pin);
+          } else {
+            Serial.print(F("B"));
+            Serial.print(pin - 8);
+          }
+          Serial.println(F(" ON"));
+          delay(100); // Small delay to see the progression
+        }
+        Serial.println(F("All 16 MCP23017 pins are now ON (LOW)"));
+        Serial.println(F("Use ALLOFF or RESUME to restore normal operation"));
+      }
+    } else if (command == "ALLOFF") {
+      Serial.println(F("*** Turning ALL MCP23017 pins OFF ***"));
+      Wire.begin();
+      
+      // Create temporary MCP23017 instance
+      Adafruit_MCP23X17 testMcp;
+      if (!testMcp.begin_I2C(MCP_LED_ADDR)) {
+        Serial.println(F("Failed to initialize MCP23017"));
+      } else {
+        Serial.println(F("MCP23017 initialized - turning off ALL pins"));
+        
+        // Turn all 16 pins OFF
+        for (uint8_t pin = 0; pin <= 15; pin++) {
+          testMcp.pinMode(pin, OUTPUT);
+          testMcp.digitalWrite(pin, HIGH); // Active LOW: HIGH = LED OFF
+        }
+        Serial.println(F("All 16 MCP23017 pins are now OFF (HIGH)"));
+        Serial.println(F("Use RESUME to restore normal puzzle operation"));
+      }
+    } else if (command == "PAUSE") {
+      managerPaused = true;
+      Serial.println(F("*** Manager PAUSED - LED testing mode ***"));
+      Serial.println(F("Puzzles will not update LEDs until RESUME"));
+    } else if (command == "RESUME") {
+      managerPaused = false;
+      Serial.println(F("*** Manager RESUMED - Normal operation ***"));
+      Serial.println(F("Puzzle LEDs will now reflect puzzle states"));
     } else if (command == "I2CSCAN") {
       Serial.println(F("*** Scanning I2C bus ***"));
       Wire.begin();
@@ -194,8 +265,12 @@ void loop() {
       Serial.println(F("  ATTACH  - Re-attach servo"));
       Serial.println(F("  STOP    - Force stop servo completely"));
       Serial.println(F("  STATUS  - Show current status"));
-      Serial.println(F("  LEDTEST - Test PCF8574 status LEDs"));
-      Serial.println(F("  LEDRAW  - Raw PCF8574 LED test"));
+      Serial.println(F("  LEDTEST - Test MCP23017 status LEDs"));
+      Serial.println(F("  LEDRAW  - Raw MCP23017 LED test"));
+      Serial.println(F("  ALLON   - Turn ALL 16 MCP23017 pins ON (auto-pauses)"));
+      Serial.println(F("  ALLOFF  - Turn ALL 16 MCP23017 pins OFF"));
+      Serial.println(F("  PAUSE   - Pause manager (for LED testing)"));
+      Serial.println(F("  RESUME  - Resume normal puzzle operation"));
       Serial.println(F("  I2CSCAN - Scan I2C bus for devices"));
       Serial.println(F("  HELP    - Show this help"));
     } else if (command.length() > 0) {
@@ -205,7 +280,10 @@ void loop() {
     }
   }
   
-  manager.update(now);
+  // Only update manager if not paused (for LED testing)
+  if (!managerPaused) {
+    manager.update(now);
+  }
   
   // add DFPlayer tick, other housekeeping here later
 }
