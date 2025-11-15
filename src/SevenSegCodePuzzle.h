@@ -148,7 +148,7 @@ public:
 
   // ———— Tunables you can change per instance ————
   uint16_t cursorBlinkMs = 450;   // public if you want to tweak at runtime
-  uint16_t successBreathPeriodMs = 1000;
+  uint16_t successBreathPeriodMs = 500;
   uint8_t  successBreathCycles   = 4;
   uint8_t  angryFlashes          = 5;
   uint16_t angryFlashMs          = 120;
