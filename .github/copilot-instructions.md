@@ -37,11 +37,12 @@ platformio run --target upload && platformio device monitor --baud 115200
 
 ### Serial Commands (Runtime Testing)
 ```
-RESET     - Reset all puzzles and lock box
-UNLOCK    - Manual unlock (bypass puzzles)  
-LOCK      - Manual lock
-STATUS    - Show puzzle states
-LEDTEST   - Test all status LEDs
+RESET      - Reset all puzzles and lock box
+UNLOCK     - Manual unlock (bypass puzzles)  
+LOCK       - Manual lock
+STATUS     - Show puzzle states
+LEDTEST    - Test all status LEDs
+SIMONTEST  - Test Simon Says puzzle LEDs
 ```
 
 ### Adding New Puzzles

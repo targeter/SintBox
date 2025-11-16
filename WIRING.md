@@ -40,14 +40,29 @@ Controls the 7-segment switches and button for code entry.
 **Address Configuration**: A0, A1, A2 all connected to GND for address 0x24.
 
 ### 3. MCP23017 I2C Expander (Address: 0x20)
-Controls puzzle status LEDs and has expansion pins for future puzzles.
+Controls puzzle status LEDs and Simon Says puzzle.
 
 | MCP23017 Pin | Function | Description |
 |--------------|----------|-------------|
 | A3           | Puzzle 0 LED | Status LED for SevenSegCodePuzzle (Active LOW) |
 | A4           | Puzzle 1 LED | Status LED for TiltButtonPuzzle (Active LOW) |
-| A5-A7        | Future LEDs | Reserved for additional puzzle status LEDs |
-| B0-B7        | Future Expansion | Available for additional puzzle inputs/outputs |
+| A5           | Puzzle 2 LED | Status LED for SimonSaysPuzzle (Active LOW) |
+| A6-A7        | Future LEDs | Reserved for additional puzzle status LEDs |
+| B0           | Button 0 Input | Simon Says MX switch for note G (with pullup) |
+| B1           | Button 1 Input | Simon Says MX switch for note C/A/F (with pullup) |
+| B2           | Button 2 Input | Simon Says MX switch for note E/G (with pullup) |
+| B3           | Button 3 Input | Simon Says MX switch for note D/C (with pullup) |
+| B4           | Button 0 LED | Simon Says LED for button 0 (Active LOW) |
+| B5           | Button 1 LED | Simon Says LED for button 1 (Active LOW) |
+| B6           | Button 2 LED | Simon Says LED for button 2 (Active LOW) |
+| B7           | Button 3 LED | Simon Says LED for button 3 (Active LOW) |
+| SDA          | I2C Hub SDA | I2C data line |
+| SCL          | I2C Hub SCL | I2C clock line |
+| VCC          | 5V | Power supply |
+| GND          | GND | Ground |
+
+**Address Configuration**: A0, A1, A2 all connected to GND for address 0x20.
+
 | SDA          | I2C Hub SDA | I2C data line |
 | SCL          | I2C Hub SCL | I2C clock line |
 | VCC          | 5V | Power supply |
@@ -57,7 +72,19 @@ Controls puzzle status LEDs and has expansion pins for future puzzles.
 
 **LED Connection**: Connect LEDs with appropriate current-limiting resistors. LEDs are active LOW (LOW = LED ON, HIGH = LED OFF).
 
-### 4. Servo Motor
+**Simon Says Button Wiring**: Connect one side of each MX switch to the respective B0-B3 pin, other side to GND. Internal pullups are enabled.
+
+**Simon Says LED Wiring**: Connect LED cathode to B4-B7 pins, LED anode to +5V through current-limiting resistor (220Ω recommended).
+
+### 4. Passive Buzzer
+Provides audio feedback for Simon Says puzzle.
+
+| Buzzer Pin | Arduino Pin | Description |
+|------------|-------------|-------------|
+| Positive   | D5          | PWM signal for tone generation |
+| Negative   | GND         | Ground connection |
+
+### 5. Servo Motor
 Controls the lock mechanism.
 
 | Servo Wire | Arduino Pin | Description |
@@ -70,7 +97,7 @@ Controls the lock mechanism.
 - **Locked**: 0°
 - **Unlocked**: 140°
 
-### 5. Tilt Sensor
+### 6. Tilt Sensor
 Detects orientation for the tilt puzzle.
 
 | Tilt Sensor Pin | Arduino Pin | Description |
@@ -87,7 +114,7 @@ Detects orientation for the tilt puzzle.
 
 ## I2C Address Summary
 - **PCF8574**: 0x24 (7-segment switches and button)
-- **MCP23017**: 0x20 (puzzle status LEDs and expansion)
+- **MCP23017**: 0x20 (puzzle status LEDs A3-A7, Simon Says buttons B0-B3 and LEDs B4-B7)
 
 ## Pin Usage Summary
 | Arduino Pin | Function | Component |
@@ -95,6 +122,7 @@ Detects orientation for the tilt puzzle.
 | D2          | TM1637 CLK | 7-Segment Display |
 | D3          | TM1637 DIO | 7-Segment Display |
 | D4          | Digital Input | Tilt Sensor |
+| D5          | PWM Output | Passive Buzzer (Simon Says) |
 | D9          | PWM Output | Servo Motor |
 | A4 (SDA)    | I2C Data | I2C Hub |
 | A5 (SCL)    | I2C Clock | I2C Hub |
@@ -102,9 +130,9 @@ Detects orientation for the tilt puzzle.
 | GND         | Ground Rail | All Components |
 
 ## Available Pins for Expansion
-- Digital: D5, D6, D7, D8, D10, D11, D12, D13
+- Digital: D6, D7, D8, D10, D11, D12, D13
 - Analog: A0, A1, A2, A3, A6, A7
-- MCP23017 expansion pins: B0-B7, A0-A2, A5-A7
+- MCP23017 expansion pins: A0-A2, A6-A7 (B0-B7 used by Simon Says)
 
 ## Notes
 - All I2C devices share the same SDA/SCL lines via the I2C hub

@@ -4,6 +4,7 @@
 #include "PuzzleManager.h"
 #include "SevenSegCodePuzzle.h"
 #include "TiltButtonPuzzle.h"
+#include "SimonSaysPuzzle.h"
 
 // ---- Hardware Configuration ----
 // 7-Segment Display (TM1637)
@@ -12,11 +13,11 @@ constexpr uint8_t TM_DIO = 3;           // TM1637 DIO pin
 
 // I2C Addresses
 constexpr uint8_t PCF_ADDR = 0x24;      // PCF8574 for 7-segment switches (P0-P6: segments, P7: button)
-constexpr uint8_t MCP_LED_ADDR = 0x20;  // MCP23017 for puzzle status LEDs (A3-A7: 5 LEDs, remaining pins: future puzzles)
+constexpr uint8_t MCP_LED_ADDR = 0x20;  // MCP23017 for puzzle status LEDs (A3-A7) AND Simon Says (B0-B7)
 
 // Puzzle Configuration
 constexpr int SAFE_CODE = 8888;         // Correct code for 7-segment puzzle
-constexpr size_t NUM_PUZZLES = 2;       // Currently: 7-segment + tilt sensor
+constexpr size_t NUM_PUZZLES = 3;       // Currently: 7-segment + tilt sensor + simon says (simplified)
 
 // Servo Configuration
 const uint8_t SERVO_PIN = 9;
@@ -26,12 +27,16 @@ const uint8_t UNLOCK_ANGLE = 140;
 // Tilt Sensor Configuration
 constexpr uint8_t TILT_PIN = 4;         // Tilt sensor digital input pin
 
+// Simon Says Configuration
+constexpr uint8_t BUZZER_PIN = 5;       // Passive buzzer for Simon Says
+
 // Puzzle Instances
 SevenSegCodePuzzle sevenSegPuzzle(TM_CLK, TM_DIO, PCF_ADDR, SAFE_CODE);
 TiltButtonPuzzle tiltPuzzle(TILT_PIN, false, 100, 10000);  // activeLow=false, debounce=100ms, hold=10s
+SimonSaysPuzzle simonPuzzle(nullptr, BUZZER_PIN);          // MCP will be provided after manager initialization
 
-// Puzzle Array (order determines LED assignment on MCP23017: A3, A4, ...)
-Puzzle* puzzles[NUM_PUZZLES] = { &sevenSegPuzzle, &tiltPuzzle };
+// Puzzle Array (order determines LED assignment on MCP23017: A3, A4, A5...)
+Puzzle* puzzles[NUM_PUZZLES] = { &sevenSegPuzzle, &tiltPuzzle, &simonPuzzle };
 
 // Puzzle Manager with MCP23017-based LED control and servo
 PuzzleManager<NUM_PUZZLES> manager(MCP_LED_ADDR, SERVO_PIN, LOCK_ANGLE, UNLOCK_ANGLE, true);
@@ -44,10 +49,23 @@ void setup() {
   manager.attach(puzzles);
   manager.begin();
   
+  // Provide MCP reference to Simon Says puzzle after manager initializes it
+  Serial.print(F("Setting Simon Says MCP: "));
+  Adafruit_MCP23X17* mcpPtr = manager.getMCP();
+  Serial.println(mcpPtr != nullptr ? F("Valid pointer") : F("NULL pointer"));
+  simonPuzzle.setMCP(mcpPtr);
+  
+  // Manually call Simon Says begin() now that MCP is available
+  Serial.println(F("Calling Simon Says begin() with MCP available"));
+  simonPuzzle.begin();
+  
   Serial.print(F("Initialized "));
   Serial.print(NUM_PUZZLES);
-  Serial.println(F(" puzzles"));
-  Serial.println(F("Commands: RESET, UNLOCK, LOCK, STATUS, LEDTEST"));
+  Serial.println(F(" puzzles:"));
+  Serial.println(F("  1. 7-Segment Code Entry"));
+  Serial.println(F("  2. Tilt Sensor Hold"));
+  Serial.println(F("  3. Simon Says Melodies"));
+  Serial.println(F("Commands: RESET, UNLOCK, LOCK, STATUS, LEDTEST, SIMONTEST"));
   Serial.println(F("System ready!"));
 }
 
@@ -92,10 +110,13 @@ void loop() {
     } else if (command == "LEDTEST") {
       Serial.println(F("*** Testing puzzle status LEDs ***"));
       manager.testLEDs();
+    } else if (command == "SIMONTEST") {
+      Serial.println(F("*** Testing Simon Says LEDs ***"));
+      simonPuzzle.testLEDs();
     } else if (command.length() > 0) {
       Serial.print(F("Unknown command: "));
       Serial.println(command);
-      Serial.println(F("Available: RESET, UNLOCK, LOCK, STATUS, LEDTEST"));
+      Serial.println(F("Available: RESET, UNLOCK, LOCK, STATUS, LEDTEST, SIMONTEST"));
     }
   }
   

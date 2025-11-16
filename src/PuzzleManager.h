@@ -38,6 +38,7 @@ public:
       _mcp.digitalWrite(pin, HIGH);  // Active LOW: HIGH = LED OFF
     }
     Serial.println(F("  MCP23017 pins A3-A7 configured for puzzle LEDs"));
+    Serial.println(F("  MCP23017 pins B0-B7 available for puzzle use"));
     
     // Initialize puzzles
     for (size_t i = 0; i < N; i++) {
@@ -175,6 +176,11 @@ public:
       _currentAngle = _unlockedAngle;
       delay(500);
     }
+  }
+  
+  // Provide access to the MCP instance for puzzles that need direct hardware control
+  Adafruit_MCP23X17* getMCP() {
+    return &_mcp;
   }
 
 private:
