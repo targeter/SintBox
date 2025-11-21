@@ -31,15 +31,11 @@ constexpr uint8_t TILT_PIN = 4;         // Tilt sensor digital input pin
 // Simon Says Configuration
 constexpr uint8_t BUZZER_PIN = 5;       // Passive buzzer for Simon Says
 
-// NFC Configuration
-constexpr uint8_t NFC_IRQ_PIN = 6;      // PN532 IRQ pin
-constexpr uint8_t NFC_RESET_PIN = 7;    // PN532 Reset pin
-
 // Puzzle Instances
 SevenSegCodePuzzle sevenSegPuzzle(TM_CLK, TM_DIO, PCF_ADDR, SAFE_CODE);
 TiltButtonPuzzle tiltPuzzle(TILT_PIN, false, 100, 10000);  // activeLow=false, debounce=100ms, hold=10s
 SimonSaysPuzzle simonPuzzle(nullptr, BUZZER_PIN);          // MCP will be provided after manager initialization
-NFCAmiiboPuzzle nfcPuzzle(NFC_IRQ_PIN, NFC_RESET_PIN);     // Goomba amiibo recognition
+NFCAmiiboPuzzle nfcPuzzle;                                 // Goomba amiibo recognition (I2C only)
 
 // Puzzle Array (order determines LED assignment on MCP23017: A3, A4, A5, A6...)
 Puzzle* puzzles[NUM_PUZZLES] = { &sevenSegPuzzle, &tiltPuzzle, &simonPuzzle, &nfcPuzzle };

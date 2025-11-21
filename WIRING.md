@@ -25,7 +25,7 @@ Used for the code entry puzzle.
 | VCC        | 5V          | Power supply |
 | GND        | GND         | Ground |
 
-### 2. PCF8574 I2C Expander (Address: 0x24)
+### 2. PCF8574 I2C Expander (Address: 0x25)
 Controls the 7-segment switches and button for code entry.
 
 | PCF8574 Pin | Function | Description |
@@ -37,7 +37,7 @@ Controls the 7-segment switches and button for code entry.
 | VCC         | 5V | Power supply |
 | GND         | GND | Ground |
 
-**Address Configuration**: A0, A1, A2 all connected to GND for address 0x24.
+**Address Configuration**: A0 connected to VCC, A1 and A2 connected to GND for address 0x25.
 
 ### 3. MCP23017 I2C Expander (Address: 0x20)
 Controls puzzle status LEDs and Simon Says puzzle.
@@ -47,7 +47,8 @@ Controls puzzle status LEDs and Simon Says puzzle.
 | A3           | Puzzle 0 LED | Status LED for SevenSegCodePuzzle (Active LOW) |
 | A4           | Puzzle 1 LED | Status LED for TiltButtonPuzzle (Active LOW) |
 | A5           | Puzzle 2 LED | Status LED for SimonSaysPuzzle (Active LOW) |
-| A6-A7        | Future LEDs | Reserved for additional puzzle status LEDs |
+| A6           | Puzzle 3 LED | Status LED for NFCAmiiboPuzzle (Active LOW) |
+| A7           | Future LED | Reserved for additional puzzle status LED |
 | B0           | Button 0 Input | Simon Says MX switch for note G (with pullup) |
 | B1           | Button 1 Input | Simon Says MX switch for note C/A/F (with pullup) |
 | B2           | Button 2 Input | Simon Says MX switch for note E/G (with pullup) |
@@ -107,14 +108,34 @@ Detects orientation for the tilt puzzle.
 
 **Operation**: HIGH = active (right-side up), requires 10-second hold to solve.
 
+### 7. PN532 NFC Module (I2C Mode, Address: 0x24)
+Used for Goomba amiibo recognition puzzle.
+
+| PN532 Pin | Arduino Pin | Description |
+|-----------|-------------|-------------|
+| VCC       | 3.3V        | Power supply (**3.3V only!**) |
+| GND       | GND         | Ground connection |
+| SDA       | A4 (SDA)    | I2C data line (via I2C hub) |
+| SCL       | A5 (SCL)    | I2C clock line (via I2C hub) |
+
+**Important Notes**: 
+- The PN532 module **MUST** be powered with 3.3V, not 5V!
+- Set module DIP switches for I2C mode
+- IRQ and Reset pins are not used (I2C-only mode)
+- Module uses I2C address 0x24
+
+**Operation**: Present the Goomba amiibo (UID: 04:A6:89:72:3C:4D:80) to solve the puzzle.
+
 ## Power Requirements
 - **Arduino**: 5V via USB or DC jack
-- **All components**: Powered from Arduino 5V and GND rails
+- **Most components**: Powered from Arduino 5V rail
+- **PN532 NFC Module**: **3.3V only** (connect to Arduino 3.3V output)
 - **Current draw**: Ensure adequate power supply capacity for servo motor operation
 
 ## I2C Address Summary
-- **PCF8574**: 0x24 (7-segment switches and button)
 - **MCP23017**: 0x20 (puzzle status LEDs A3-A7, Simon Says buttons B0-B3 and LEDs B4-B7)
+- **PN532 NFC**: 0x24 (Goomba amiibo recognition)
+- **PCF8574**: 0x25 (7-segment switches and button)
 
 ## Pin Usage Summary
 | Arduino Pin | Function | Component |
@@ -132,10 +153,11 @@ Detects orientation for the tilt puzzle.
 ## Available Pins for Expansion
 - Digital: D6, D7, D8, D10, D11, D12, D13
 - Analog: A0, A1, A2, A3, A6, A7
-- MCP23017 expansion pins: A0-A2, A6-A7 (B0-B7 used by Simon Says)
+- MCP23017 expansion pins: A0-A2, A7 (B0-B7 used by Simon Says)
 
 ## Notes
 - All I2C devices share the same SDA/SCL lines via the I2C hub
+- **PN532 NFC module requires 3.3V power, not 5V**
 - Internal pull-up resistors are used where applicable
 - Ensure proper power supply decoupling for stable I2C operation
 - Test each component individually before final assembly

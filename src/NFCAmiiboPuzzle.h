@@ -14,10 +14,10 @@ public:
     SOLVED
   };
 
-  NFCAmiiboPuzzle(uint8_t irqPin, uint8_t resetPin) 
-    : _irqPin(irqPin), _resetPin(resetPin), _nfc(irqPin, resetPin),
+  NFCAmiiboPuzzle() 
+    : _nfc(-1, -1),  // I2C mode: pass -1 for IRQ and Reset pins
       _state(State::WAITING_TO_START), _solved(false), _stateTimer(0),
-      _lastSeenAt(0), _lastUIDLen(0) {
+      _lastUIDLen(0), _lastSeenAt(0) {
     // Goomba UID: 04:A6:89:72:3C:4D:80
     _targetUID[0] = 0x04;
     _targetUID[1] = 0xA6;
@@ -142,8 +142,6 @@ public:
   }
 
 private:
-  uint8_t _irqPin;
-  uint8_t _resetPin;
   Adafruit_PN532 _nfc;
   State _state;
   bool _solved;

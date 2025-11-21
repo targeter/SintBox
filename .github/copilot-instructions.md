@@ -23,8 +23,9 @@ TM_CLK = 2, TM_DIO = 3         // TM1637 display
 SERVO_PIN = 9                   // Lock servo
 TILT_PIN = 4                   // Tilt sensor
 BUZZER_PIN = 5                 // Simon Says passive buzzer
-PCF_ADDR = 0x24                // 7-segment switches (P0-P6: segments, P7: button)
 MCP_LED_ADDR = 0x20            // Dual purpose: Status LEDs (A3-A7) + Simon Says (B0-B7)
+NFC_I2C_ADDR = 0x24            // PN532 NFC module (I2C-only mode)
+PCF_ADDR = 0x25                // 7-segment switches (P0-P6: segments, P7: button)
 ```
 
 ## Development Workflows
@@ -43,7 +44,7 @@ platformio run
 RESET      - Reset all puzzles and lock box
 UNLOCK     - Manual unlock (bypass puzzles)  
 LOCK       - Manual lock
-STATUS     - Show puzzle states and solution progress
+STATUS     - Show puzzle states and solution progress (includes NFC puzzle state)
 LEDTEST    - Test all puzzle status LEDs (A3-A7)
 SIMONTEST  - Test Simon Says buttons/LEDs (B0-B7) and buzzer
 ```
@@ -52,7 +53,7 @@ SIMONTEST  - Test Simon Says buttons/LEDs (B0-B7) and buzzer
 1. Inherit from `Puzzle` class in new header file
 2. Implement all virtual methods (especially `update()` state machine)
 3. Add to `puzzles[]` array in `main.cpp` 
-4. Increment `NUM_PUZZLES` constant
+4. Increment `NUM_PUZZLES` constant (currently 4)
 5. Update LED mapping comments (puzzles map to MCP23017 pins A3-A7)
 
 ### MCP23017 Shared Access Pattern (Critical for SimonSaysPuzzle)
@@ -75,6 +76,7 @@ simonPuzzle.begin();
 // All puzzles use millis()-based timing and puzzle-specific enum states
 // SevenSegCodePuzzle: PREVIEW, VALIDATE, INVALID_BLINK, LOCKED
 // SimonSaysPuzzle: WAITING_TO_START, IDLE, PLAYING_SEQUENCE, WAITING_INPUT, SUCCESS_FEEDBACK, FAILURE_FEEDBACK
+// NFCAmiiboPuzzle: WAITING_TO_START, IDLE, READING_NFC, SUCCESS_FEEDBACK, SOLVED
 enum class State { WAITING_TO_START, IDLE, ACTIVE, SOLVED };
 State _state = State::WAITING_TO_START;
 uint32_t _stateTimer = 0;
@@ -116,6 +118,14 @@ void update(uint32_t now) override {
 - Always call `noTone(pin)` to stop ongoing tones
 - Buzzer pin must be configured as OUTPUT in puzzle `begin()`
 
+### NFC Integration (NFCAmiiboPuzzle)
+- Uses Adafruit PN532 library in I2C-only mode
+- Constructor pattern: `Adafruit_PN532(-1, -1)` for I2C without IRQ/Reset pins
+- Always call `Wire.begin()` and `_nfc.begin()` in puzzle `begin()` method
+- Use 800ms debounce delay between tag reads to prevent re-reads
+- UID validation: Compare 7-byte array from `_nfc.readPassiveTargetID()`
+- Known Goomba amiibo UID: `{0x04, 0xA6, 0x89, 0x72, 0x3C, 0x4D, 0x80}`
+
 ## Project Structure
 ```
 src/
@@ -124,7 +134,8 @@ src/
 ├── Puzzle.h              # Pure virtual interface
 ├── SevenSegCodePuzzle.h  # Complex calculator-style code entry
 ├── TiltButtonPuzzle.h    # Simple hold-to-solve puzzle
-└── SimonSaysPuzzle.h     # Musical sequence memory game
+├── SimonSaysPuzzle.h     # Musical sequence memory game
+└── NFCAmiiboPuzzle.h     # NFC amiibo recognition (Goomba UID: 04:A6:89:72:3C:4D:80)
 lib/TM1637/              # Local TM1637 display library
 WIRING.md                # Complete hardware connection guide
 ```
