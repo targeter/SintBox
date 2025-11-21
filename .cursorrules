@@ -1,0 +1,9 @@
+# SintBox Arduino Puzzle Box - Cursor AI Rules
+# See .github/copilot-instructions.md for complete project documentation
+
+You are working on an Arduino-based escape room puzzle box project. Key constraints:
+- NEVER run upload commands to Arduino (use only `platformio run` for builds)
+- Use templated C++ architecture with polymorphic puzzle classes
+- Follow MCP23017 shared resource patterns for SimonSaysPuzzle
+- Implement non-blocking state machines with millis() timing
+- Reference .github/copilot-instructions.md for complete architecture details

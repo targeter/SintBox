@@ -22,17 +22,20 @@ SintBox is an Arduino-based escape room puzzle box with multiple puzzles that mu
 TM_CLK = 2, TM_DIO = 3         // TM1637 display
 SERVO_PIN = 9                   // Lock servo
 TILT_PIN = 4                   // Tilt sensor
-PCF_ADDR = 0x24                // 7-segment switches
-MCP_LED_ADDR = 0x20            // Status LEDs (A3-A7)
+BUZZER_PIN = 5                 // Simon Says passive buzzer
+PCF_ADDR = 0x24                // 7-segment switches (P0-P6: segments, P7: button)
+MCP_LED_ADDR = 0x20            // Dual purpose: Status LEDs (A3-A7) + Simon Says (B0-B7)
 ```
 
 ## Development Workflows
 
-### Building and Upload
+### Building and Testing
 ```bash
-# Primary workflow - build, upload, and monitor
-platformio run --target upload && platformio device monitor --baud 115200
-# Or use the VS Code task: "Upload and Monitor"
+# Build only - DO NOT upload (Arduino interaction is unreliable)
+platformio run
+
+# Upload and monitor must be done manually by user
+# Use VS Code task "Upload and Monitor" when ready
 ```
 
 ### Serial Commands (Runtime Testing)
@@ -40,9 +43,9 @@ platformio run --target upload && platformio device monitor --baud 115200
 RESET      - Reset all puzzles and lock box
 UNLOCK     - Manual unlock (bypass puzzles)  
 LOCK       - Manual lock
-STATUS     - Show puzzle states
-LEDTEST    - Test all status LEDs
-SIMONTEST  - Test Simon Says puzzle LEDs
+STATUS     - Show puzzle states and solution progress
+LEDTEST    - Test all puzzle status LEDs (A3-A7)
+SIMONTEST  - Test Simon Says buttons/LEDs (B0-B7) and buzzer
 ```
 
 ### Adding New Puzzles
@@ -52,21 +55,36 @@ SIMONTEST  - Test Simon Says puzzle LEDs
 4. Increment `NUM_PUZZLES` constant
 5. Update LED mapping comments (puzzles map to MCP23017 pins A3-A7)
 
+### MCP23017 Shared Access Pattern (Critical for SimonSaysPuzzle)
+```cpp
+// 1. Initialize puzzle with nullptr MCP in main.cpp
+SimonSaysPuzzle simonPuzzle(nullptr, BUZZER_PIN);
+
+// 2. Manager initializes MCP, then provide reference to puzzle
+manager.begin();
+simonPuzzle.setMCP(manager.getMCP());
+
+// 3. Manually call puzzle begin() after MCP is available
+simonPuzzle.begin();
+```
+
 ## Puzzle Implementation Patterns
 
 ### State Machine Structure
 ```cpp
-// All puzzles use millis()-based timing and enum states
-enum class State { IDLE, ACTIVE, SOLVED };
-State _state = State::IDLE;
+// All puzzles use millis()-based timing and puzzle-specific enum states
+// SevenSegCodePuzzle: PREVIEW, VALIDATE, INVALID_BLINK, LOCKED
+// SimonSaysPuzzle: WAITING_TO_START, IDLE, PLAYING_SEQUENCE, WAITING_INPUT, SUCCESS_FEEDBACK, FAILURE_FEEDBACK
+enum class State { WAITING_TO_START, IDLE, ACTIVE, SOLVED };
+State _state = State::WAITING_TO_START;
 uint32_t _stateTimer = 0;
 
 void update(uint32_t now) override {
-    // Debouncing pattern
+    // Standard debouncing pattern for inputs
     if (input != _lastInput) { _changeTime = now; _lastInput = input; }
     if ((now - _changeTime) >= DEBOUNCE_MS && input != _stableInput) {
         _stableInput = input;
-        // Handle state change
+        // Handle state transitions in switch statement
     }
 }
 ```
@@ -78,8 +96,13 @@ void update(uint32_t now) override {
 
 ## Hardware Integration Patterns
 
+### MCP23017 Shared Resource Pattern
+- **Critical**: SimonSaysPuzzle requires MCP pointer from PuzzleManager after initialization
+- Use `setMCP(manager.getMCP())` + delayed `begin()` call pattern
+- MCP pins: A3-A7 for status LEDs, B0-B7 for Simon Says buttons/LEDs
+
 ### I2C Communication
-- Always call `Wire.begin()` in puzzle `begin()` methods
+- Always call `Wire.begin()` in puzzle `begin()` methods if using I2C directly
 - Use `Wire.beginTransmission(addr)` + `Wire.write()` + `Wire.endTransmission()` pattern
 - Check return codes: `0 = success`, non-zero indicates I2C errors
 
@@ -88,6 +111,11 @@ void update(uint32_t now) override {
 - Display updates are immediate, no buffering needed
 - Brightness: `setBrightness(0-7, bool on)`
 
+### Audio Integration (SimonSaysPuzzle)
+- Uses `tone(pin, frequency, duration)` for musical sequences
+- Always call `noTone(pin)` to stop ongoing tones
+- Buzzer pin must be configured as OUTPUT in puzzle `begin()`
+
 ## Project Structure
 ```
 src/
@@ -95,7 +123,8 @@ src/
 ├── PuzzleManager.h       # Template class for puzzle coordination
 ├── Puzzle.h              # Pure virtual interface
 ├── SevenSegCodePuzzle.h  # Complex calculator-style code entry
-└── TiltButtonPuzzle.h    # Simple hold-to-solve puzzle
+├── TiltButtonPuzzle.h    # Simple hold-to-solve puzzle
+└── SimonSaysPuzzle.h     # Musical sequence memory game
 lib/TM1637/              # Local TM1637 display library
 WIRING.md                # Complete hardware connection guide
 ```
@@ -106,4 +135,8 @@ WIRING.md                # Complete hardware connection guide
 - Puzzle state changes are logged automatically
 - Use `STATUS` command to check current puzzle states without side effects
 
-Do not build and upload while working on the code, the interaction with the Arduino is flaky. Let the do it manually. 
+## Important Workflow Restrictions
+- **NEVER run upload commands** - Arduino communication is unreliable in automated environments
+- **Only use `platformio run`** for compilation/build verification
+- **User must manually upload** using "Upload and Monitor" task when ready
+- Build errors are fine to fix, but leave upload/deploy to user 
