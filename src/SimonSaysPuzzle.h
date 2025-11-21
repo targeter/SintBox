@@ -55,16 +55,12 @@ public:
     
     switch (_state) {
       case State::WAITING_TO_START:
-        // Check if any button is pressed to start the game
-        for (int i = 0; i < 4; i++) {
-          if (_buttonState[i]) { // Any button currently pressed
-            Serial.print(F("Button "));
-            Serial.print(i);
-            Serial.println(F(" pressed - Simon Says starting! Get ready..."));
-            _state = State::IDLE;
-            _stateTimer = now;
-            return; // Exit early to avoid processing other states
-          }
+        // Check if buttons 1, 2, and 4 are pressed simultaneously to start the game
+        if (_buttonState[0] && _buttonState[1] && _buttonState[3]) { // Buttons 1, 2, 4 (indices 0, 1, 3)
+          Serial.println(F("Buttons 1, 2, 4 pressed simultaneously - Simon Says starting! Get ready..."));
+          _state = State::IDLE;
+          _stateTimer = now;
+          return; // Exit early to avoid processing other states
         }
         break;
         
@@ -103,6 +99,8 @@ public:
     _currentRound = 0;
     _sequenceIndex = 0;
     _playerIndex = 0;
+    _currentLength = 1;  // Start with just the first note
+    _timeoutCount = 0;   // Reset timeout counter
     _state = State::WAITING_TO_START;
     _stateTimer = millis();
     
@@ -123,7 +121,7 @@ public:
     
     Serial.println(F("Simon Says puzzle reset"));
     if (_mcpInitialized) {
-      Serial.println(F("Press any button to start the game!"));
+      Serial.println(F("Press buttons 1, 2, and 4 simultaneously to start the game!"));
     }
   }
 
@@ -221,6 +219,8 @@ private:
   uint8_t _currentRound = 0;        // 0, 1, or 2
   uint8_t _sequenceIndex = 0;       // Current position in sequence being played/learned
   uint8_t _playerIndex = 0;         // Current position player needs to input
+  uint8_t _currentLength = 1;       // Current build-up length (starts at 1, grows to full sequence)
+  uint8_t _timeoutCount = 0;        // Number of consecutive timeouts (resets puzzle after 4)
   
   // Button debouncing
   bool _buttonState[4] = {false};
@@ -255,14 +255,19 @@ private:
     _state = State::PLAYING_SEQUENCE;
     _stateTimer = millis();
     
-    Serial.print(F("Starting round "));
+    Serial.print(F("Round "));
     Serial.print(_currentRound + 1);
+    Serial.print(F(" - Length "));
+    Serial.print(_currentLength);
+    Serial.print(F("/"));
+    Serial.print(_getCurrentSequenceLength());
     Serial.println(F(" - Watch and listen..."));
   }
 
   void _playSequenceStep(uint32_t now) {
     const uint8_t* sequence = _getCurrentSequence();
-    uint8_t sequenceLength = _getCurrentSequenceLength();
+    // Use current build-up length instead of full sequence
+    uint8_t sequenceLength = _currentLength;
     
     uint32_t elapsed = now - _stateTimer;
     uint32_t stepDuration = NOTE_DURATION + NOTE_PAUSE;
@@ -295,9 +300,20 @@ private:
   void _handlePlayerInput(uint32_t now) {
     // Check for timeout
     if (now - _inputTimer > INPUT_TIMEOUT) {
-      Serial.println(F("Timeout! Try again..."));
-      _failure();
-      return;
+      _timeoutCount++;
+      Serial.print(F("Timeout! ("));
+      Serial.print(_timeoutCount);
+      Serial.println(F("/4)"));
+      
+      if (_timeoutCount >= 4) {
+        Serial.println(F("Too many timeouts - resetting puzzle to start"));
+        reset();
+        return;
+      } else {
+        Serial.println(F("Try again..."));
+        _failure();
+        return;
+      }
     }
     
     // Check for button presses
@@ -318,7 +334,8 @@ private:
 
   void _handleButtonPress(int button, uint32_t now) {
     const uint8_t* sequence = _getCurrentSequence();
-    uint8_t sequenceLength = _getCurrentSequenceLength();
+    // Use current build-up length instead of full sequence
+    uint8_t sequenceLength = _currentLength;
     
     // Visual and audio feedback
     _playNote(button);
@@ -331,18 +348,23 @@ private:
       // Correct button
       _playerIndex++;
       _inputTimer = now; // Reset timeout
+      _timeoutCount = 0; // Reset timeout counter on successful input
       
       if (_playerIndex >= sequenceLength) {
-        // Sequence completed correctly
-        Serial.println(F("Correct sequence!"));
+        // Current length completed correctly
+        Serial.print(F("Correct! Length "));
+        Serial.print(_currentLength);
+        Serial.println(F(" completed."));
         _success();
       }
     } else {
       // Wrong button
+      _timeoutCount = 0; // Reset timeout counter on any input (even wrong)
       Serial.print(F("Wrong! Expected button "));
       Serial.print(sequence[_playerIndex]);
       Serial.print(F(", got "));
-      Serial.println(button);
+      Serial.print(button);
+      Serial.println(F(" - repeating sequence..."));
       _failure();
     }
   }
@@ -351,13 +373,36 @@ private:
     _state = State::SUCCESS_FEEDBACK;
     _stateTimer = millis();
     
-    // Success pattern - all LEDs blink
-    for (int i = 0; i < 3; i++) {
-      _allLedsOn();
+    uint8_t fullSequenceLength = _getCurrentSequenceLength();
+    
+    if (_currentLength >= fullSequenceLength) {
+      // Completed the full song - move to next round
+      Serial.print(F("Song "));
+      Serial.print(_currentRound + 1);
+      Serial.println(F(" completed!"));
+      
+      // Success pattern - all LEDs blink
+      for (int i = 0; i < 3; i++) {
+        _allLedsOn();
+        _playSuccessSound();
+        delay(200);
+        _allLedsOff();
+        delay(200);
+      }
+      
+      _nextRound();
+    } else {
+      // Increase build-up length for next iteration
+      _currentLength++;
+      Serial.print(F("Building up to length "));
+      Serial.println(_currentLength);
+      
+      // Brief success feedback
       _playSuccessSound();
-      delay(200);
-      _allLedsOff();
-      delay(200);
+      delay(500);
+      
+      // Continue with current round at increased length
+      _startRound();
     }
   }
 
@@ -370,17 +415,24 @@ private:
     _allLedsOn();
     delay(500);
     _allLedsOff();
+    
+    // Repeat the same build-up length (don't reset to 1)
+    Serial.print(F("Repeating sequence of length "));
+    Serial.println(_currentLength);
+    _startRound();
   }
 
   void _nextRound() {
     _currentRound++;
+    _currentLength = 1;  // Reset build-up length for new round
+    
     if (_currentRound >= 3) {
       _solved = true;
       Serial.println(F("*** Simon Says puzzle SOLVED! All rounds completed! ***"));
     } else {
       Serial.print(F("Round "));
       Serial.print(_currentRound + 1);
-      Serial.println(F(" ready - press any button to start!"));
+      Serial.println(F(" ready - press buttons 1, 2, and 4 simultaneously to start!"));
       _state = State::WAITING_TO_START;
       _stateTimer = millis();
     }

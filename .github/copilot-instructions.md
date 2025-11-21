@@ -105,3 +105,5 @@ WIRING.md                # Complete hardware connection guide
 - MCP23017 initialization failures are common - check I2C addresses
 - Puzzle state changes are logged automatically
 - Use `STATUS` command to check current puzzle states without side effects
+
+Do not build and upload while working on the code, the interaction with the Arduino is flaky. Let the do it manually. 
