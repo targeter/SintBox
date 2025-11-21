@@ -12,7 +12,7 @@ constexpr uint8_t TM_CLK = 2;           // TM1637 CLK pin
 constexpr uint8_t TM_DIO = 3;           // TM1637 DIO pin
 
 // I2C Addresses
-constexpr uint8_t PCF_ADDR = 0x24;      // PCF8574 for 7-segment switches (P0-P6: segments, P7: button)
+constexpr uint8_t PCF_ADDR = 0x25;      // PCF8574 for 7-segment switches (P0-P6: segments, P7: button)
 constexpr uint8_t MCP_LED_ADDR = 0x20;  // MCP23017 for puzzle status LEDs (A3-A7) AND Simon Says (B0-B7)
 
 // Puzzle Configuration
