@@ -5,6 +5,7 @@
 #include "SevenSegCodePuzzle.h"
 #include "TiltButtonPuzzle.h"
 #include "SimonSaysPuzzle.h"
+#include "NFCAmiiboPuzzle.h"
 
 // ---- Hardware Configuration ----
 // 7-Segment Display (TM1637)
@@ -17,7 +18,7 @@ constexpr uint8_t MCP_LED_ADDR = 0x20;  // MCP23017 for puzzle status LEDs (A3-A
 
 // Puzzle Configuration
 constexpr int SAFE_CODE = 8888;         // Correct code for 7-segment puzzle
-constexpr size_t NUM_PUZZLES = 3;       // Currently: 7-segment + tilt sensor + simon says (simplified)
+constexpr size_t NUM_PUZZLES = 4;       // 7-segment + tilt sensor + simon says + NFC goomba
 
 // Servo Configuration
 const uint8_t SERVO_PIN = 9;
@@ -30,13 +31,18 @@ constexpr uint8_t TILT_PIN = 4;         // Tilt sensor digital input pin
 // Simon Says Configuration
 constexpr uint8_t BUZZER_PIN = 5;       // Passive buzzer for Simon Says
 
+// NFC Configuration
+constexpr uint8_t NFC_IRQ_PIN = 6;      // PN532 IRQ pin
+constexpr uint8_t NFC_RESET_PIN = 7;    // PN532 Reset pin
+
 // Puzzle Instances
 SevenSegCodePuzzle sevenSegPuzzle(TM_CLK, TM_DIO, PCF_ADDR, SAFE_CODE);
 TiltButtonPuzzle tiltPuzzle(TILT_PIN, false, 100, 10000);  // activeLow=false, debounce=100ms, hold=10s
 SimonSaysPuzzle simonPuzzle(nullptr, BUZZER_PIN);          // MCP will be provided after manager initialization
+NFCAmiiboPuzzle nfcPuzzle(NFC_IRQ_PIN, NFC_RESET_PIN);     // Goomba amiibo recognition
 
-// Puzzle Array (order determines LED assignment on MCP23017: A3, A4, A5...)
-Puzzle* puzzles[NUM_PUZZLES] = { &sevenSegPuzzle, &tiltPuzzle, &simonPuzzle };
+// Puzzle Array (order determines LED assignment on MCP23017: A3, A4, A5, A6...)
+Puzzle* puzzles[NUM_PUZZLES] = { &sevenSegPuzzle, &tiltPuzzle, &simonPuzzle, &nfcPuzzle };
 
 // Puzzle Manager with MCP23017-based LED control and servo
 PuzzleManager<NUM_PUZZLES> manager(MCP_LED_ADDR, SERVO_PIN, LOCK_ANGLE, UNLOCK_ANGLE, true);
@@ -65,6 +71,7 @@ void setup() {
   Serial.println(F("  1. 7-Segment Code Entry"));
   Serial.println(F("  2. Tilt Sensor Hold"));
   Serial.println(F("  3. Simon Says Melodies"));
+  Serial.println(F("  4. Goomba Amiibo Recognition"));
   Serial.println(F("Commands: RESET, UNLOCK, LOCK, STATUS, LEDTEST, SIMONTEST"));
   Serial.println(F("System ready!"));
 }
