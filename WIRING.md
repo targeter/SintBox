@@ -144,6 +144,16 @@ Used for knock detection puzzle.
 
 **Operation**: Detects 4 knocks in quick succession (2-second window) with deviation from gravity threshold of 5.0 m/s².
 
+### 9. Key Switch
+System power-on switch that delays initialization until activated.
+
+| Key Switch Pin | Arduino Pin | Description |
+|----------------|-------------|-------------|
+| Pin 1          | D12         | Digital input (INPUT_PULLUP) |
+| Pin 2          | GND         | Ground connection |
+
+**Operation**: System waits in setup() until key is turned on (pin reads LOW). Built-in LED blinks while waiting.
+
 ## Power Requirements
 - **Arduino**: 5V via USB or DC jack
 - **Most components**: Powered from Arduino 5V rail
@@ -165,13 +175,14 @@ Used for knock detection puzzle.
 | D9          | PWM Output | Servo Motor |
 | D10         | TM1637 CLK | 7-Segment Display |
 | D11         | TM1637 DIO | 7-Segment Display |
+| D12         | Digital Input | Key Switch (power-on activation) |
 | A4 (SDA)    | I2C Data | I2C Hub |
 | A5 (SCL)    | I2C Clock | I2C Hub |
 | 5V          | Power Rail | All Components |
 | GND         | Ground Rail | All Components |
 
 ## Available Pins for Expansion
-- Digital: D3, D6, D7, D8, D12, D13
+- Digital: D3, D6, D7, D8, D13
 - Analog: A0, A1, A2, A3, A6, A7
 - MCP23017 expansion pins: A0-A2, A7 (B0-B7 used by Simon Says)
 

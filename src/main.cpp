@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Wire.h>
 #include <Servo.h>
 #include <Adafruit_MCP23X17.h>
 #include "PuzzleManager.h"
@@ -32,6 +33,9 @@ constexpr uint8_t TILT_PIN = 4;         // Tilt sensor digital input pin
 // Simon Says Configuration
 constexpr uint8_t BUZZER_PIN = 5;       // Passive buzzer for Simon Says
 
+// Key Switch Configuration
+constexpr uint8_t KEY_PIN = 12;         // Key switch (connected to GND, INPUT_PULLUP)
+
 // Puzzle Instances
 SevenSegCodePuzzle sevenSegPuzzle(TM_CLK, TM_DIO, PCF_ADDR, SAFE_CODE);
 TiltButtonPuzzle tiltPuzzle(TILT_PIN, false, 100, 10000);  // activeLow=false, debounce=100ms, hold=10s
@@ -49,6 +53,52 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
   Serial.println(F("=== SintBox Puzzle System Starting ==="));
+  
+  // Configure key switch pin
+  pinMode(KEY_PIN, INPUT_PULLUP);
+  
+  // Clear all hardware to remove residual state before waiting for key
+  Wire.begin();
+  
+  // Clear TM1637 display
+  sevenSegPuzzle.clearDisplay();
+  
+  // Clear PCF8574 (7-segment switches) - set all pins HIGH (inputs with pullup)
+  Wire.beginTransmission(PCF_ADDR);
+  Wire.write(0xFF);
+  Wire.endTransmission();
+  
+  // Clear MCP23017 (puzzle LEDs and Simon Says)
+  // Set all pins as outputs and turn off all LEDs (active LOW, so write HIGH)
+  Wire.beginTransmission(MCP_LED_ADDR);
+  Wire.write(0x00);  // IODIRA register
+  Wire.write(0x00);  // Port A all outputs
+  Wire.endTransmission();
+  
+  Wire.beginTransmission(MCP_LED_ADDR);
+  Wire.write(0x01);  // IODIRB register
+  Wire.write(0x0F);  // Port B: B0-B3 inputs (Simon buttons), B4-B7 outputs (LEDs)
+  Wire.endTransmission();
+  
+  Wire.beginTransmission(MCP_LED_ADDR);
+  Wire.write(0x12);  // GPIOA register
+  Wire.write(0xFF);  // All LEDs off (active LOW)
+  Wire.endTransmission();
+  
+  Wire.beginTransmission(MCP_LED_ADDR);
+  Wire.write(0x13);  // GPIOB register
+  Wire.write(0xFF);  // All LEDs off (active LOW)
+  Wire.endTransmission();
+  
+  // Wait for key to be turned on (pin reads LOW when connected to GND)
+  Serial.println(F("Waiting for key to be turned on..."));
+  while (digitalRead(KEY_PIN) == HIGH) {
+    // Blink built-in LED to indicate waiting state
+    digitalWrite(LED_BUILTIN, millis() % 1000 < 500 ? HIGH : LOW);
+    delay(50);
+  }
+  Serial.println(F("Key detected! Initializing system..."));
+  digitalWrite(LED_BUILTIN, LOW);
   
   manager.attach(puzzles);
   manager.begin();

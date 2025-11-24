@@ -146,6 +146,12 @@ public:
 
   const __FlashStringHelper* name() const override { return F("TM1637 Safe Dial"); }
 
+  // Early display clear for use before full initialization
+  void clearDisplay() {
+    _display.setBrightness(7, true);
+    _display.clear();
+  }
+
   // ———— Tunables you can change per instance ————
   uint16_t cursorBlinkMs = 450;   // public if you want to tweak at runtime
   uint16_t successBreathPeriodMs = 500;
