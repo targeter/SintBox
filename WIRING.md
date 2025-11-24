@@ -20,8 +20,8 @@ Used for the code entry puzzle.
 
 | TM1637 Pin | Arduino Pin | Description |
 |------------|-------------|-------------|
-| CLK        | D2          | Clock signal |
-| DIO        | D3          | Data I/O signal |
+| CLK        | D10         | Clock signal |
+| DIO        | D11         | Data I/O signal |
 | VCC        | 5V          | Power supply |
 | GND        | GND         | Ground |
 
@@ -126,6 +126,24 @@ Used for Goomba amiibo recognition puzzle.
 
 **Operation**: Present the Goomba amiibo (UID: 04:A6:89:72:3C:4D:80) to solve the puzzle.
 
+### 8. ADXL345 Accelerometer (I2C Mode, Address: 0x53)
+Used for knock detection puzzle.
+
+| ADXL345 Pin | Arduino Pin | Description |
+|-------------|-------------|-------------|
+| VCC         | 3.3V        | Power supply (**3.3V recommended**) |
+| GND         | GND         | Ground connection |
+| SDA         | A4 (SDA)    | I2C data line (via I2C hub) |
+| SCL         | A5 (SCL)    | I2C clock line (via I2C hub) |
+| INT1        | D2          | Interrupt pin (optional, reserved for future use) |
+
+**Important Notes**: 
+- ADXL345 can work with 3.3V or 5V, but 3.3V is recommended
+- Module uses I2C address 0x53 (default with SDO grounded)
+- INT1 pin reserved on D2 for future interrupt-based detection
+
+**Operation**: Detects 4 knocks in quick succession (2-second window) with deviation from gravity threshold of 5.0 m/s².
+
 ## Power Requirements
 - **Arduino**: 5V via USB or DC jack
 - **Most components**: Powered from Arduino 5V rail
@@ -136,22 +154,24 @@ Used for Goomba amiibo recognition puzzle.
 - **MCP23017**: 0x20 (puzzle status LEDs A3-A7, Simon Says buttons B0-B3 and LEDs B4-B7)
 - **PN532 NFC**: 0x24 (Goomba amiibo recognition)
 - **PCF8574**: 0x25 (7-segment switches and button)
+- **ADXL345**: 0x53 (knock detection accelerometer)
 
 ## Pin Usage Summary
 | Arduino Pin | Function | Component |
 |-------------|----------|-----------|
-| D2          | TM1637 CLK | 7-Segment Display |
-| D3          | TM1637 DIO | 7-Segment Display |
+| D2          | Interrupt Input | ADXL345 Accelerometer (INT pin) |
 | D4          | Digital Input | Tilt Sensor |
 | D5          | PWM Output | Passive Buzzer (Simon Says) |
 | D9          | PWM Output | Servo Motor |
+| D10         | TM1637 CLK | 7-Segment Display |
+| D11         | TM1637 DIO | 7-Segment Display |
 | A4 (SDA)    | I2C Data | I2C Hub |
 | A5 (SCL)    | I2C Clock | I2C Hub |
 | 5V          | Power Rail | All Components |
 | GND         | Ground Rail | All Components |
 
 ## Available Pins for Expansion
-- Digital: D6, D7, D8, D10, D11, D12, D13
+- Digital: D3, D6, D7, D8, D12, D13
 - Analog: A0, A1, A2, A3, A6, A7
 - MCP23017 expansion pins: A0-A2, A7 (B0-B7 used by Simon Says)
 

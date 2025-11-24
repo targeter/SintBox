@@ -10,8 +10,8 @@
 
 // ---- Hardware Configuration ----
 // 7-Segment Display (TM1637)
-constexpr uint8_t TM_CLK = 2;           // TM1637 CLK pin
-constexpr uint8_t TM_DIO = 3;           // TM1637 DIO pin
+constexpr uint8_t TM_CLK = 10;          // TM1637 CLK pin
+constexpr uint8_t TM_DIO = 11;          // TM1637 DIO pin
 
 // I2C Addresses
 constexpr uint8_t PCF_ADDR = 0x25;      // PCF8574 for 7-segment switches (P0-P6: segments, P7: button)
