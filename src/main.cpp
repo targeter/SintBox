@@ -2,6 +2,7 @@
 #include <Wire.h>
 #include <Servo.h>
 #include <Adafruit_MCP23X17.h>
+#include <avr/wdt.h>
 #include "PuzzleManager.h"
 #include "SevenSegCodePuzzle.h"
 #include "TiltButtonPuzzle.h"
@@ -127,6 +128,15 @@ void setup() {
 
 void loop() {
   uint32_t now = millis();
+  
+  // Check if key has been turned off - trigger full reset
+  if (digitalRead(KEY_PIN) == HIGH) {
+    Serial.println(F("*** Key turned off - resetting system ***"));
+    Serial.flush();  // Ensure message is sent before reset
+    delay(100);
+    wdt_enable(WDTO_15MS);  // Enable watchdog timer with 15ms timeout
+    while(1) {}  // Wait for watchdog to reset the system
+  }
   
   // Handle serial commands
   if (Serial.available()) {
