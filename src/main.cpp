@@ -6,6 +6,7 @@
 #include "TiltButtonPuzzle.h"
 #include "SimonSaysPuzzle.h"
 #include "NFCAmiiboPuzzle.h"
+#include "KnockDetectionPuzzle.h"
 
 // ---- Hardware Configuration ----
 // 7-Segment Display (TM1637)
@@ -18,7 +19,7 @@ constexpr uint8_t MCP_LED_ADDR = 0x20;  // MCP23017 for puzzle status LEDs (A3-A
 
 // Puzzle Configuration
 constexpr int SAFE_CODE = 8888;         // Correct code for 7-segment puzzle
-constexpr size_t NUM_PUZZLES = 4;       // 7-segment + tilt sensor + simon says + NFC goomba
+constexpr size_t NUM_PUZZLES = 5;       // 7-segment + tilt sensor + simon says + NFC goomba + knock detection
 
 // Servo Configuration
 const uint8_t SERVO_PIN = 9;
@@ -36,9 +37,10 @@ SevenSegCodePuzzle sevenSegPuzzle(TM_CLK, TM_DIO, PCF_ADDR, SAFE_CODE);
 TiltButtonPuzzle tiltPuzzle(TILT_PIN, false, 100, 10000);  // activeLow=false, debounce=100ms, hold=10s
 SimonSaysPuzzle simonPuzzle(nullptr, BUZZER_PIN);          // MCP will be provided after manager initialization
 NFCAmiiboPuzzle nfcPuzzle;                                 // Goomba amiibo recognition (I2C only)
+KnockDetectionPuzzle knockPuzzle(4, 4.0, 2000, 100);       // 4 knocks, threshold=4.0 m/s^2, 2s window, 100ms quiet period
 
-// Puzzle Array (order determines LED assignment on MCP23017: A3, A4, A5, A6...)
-Puzzle* puzzles[NUM_PUZZLES] = { &sevenSegPuzzle, &tiltPuzzle, &simonPuzzle, &nfcPuzzle };
+// Puzzle Array (order determines LED assignment on MCP23017: A3, A4, A5, A6, A7...)
+Puzzle* puzzles[NUM_PUZZLES] = { &sevenSegPuzzle, &tiltPuzzle, &simonPuzzle, &nfcPuzzle, &knockPuzzle };
 
 // Puzzle Manager with MCP23017-based LED control and servo
 PuzzleManager<NUM_PUZZLES> manager(MCP_LED_ADDR, SERVO_PIN, LOCK_ANGLE, UNLOCK_ANGLE, true);
@@ -68,6 +70,7 @@ void setup() {
   Serial.println(F("  2. Tilt Sensor Hold"));
   Serial.println(F("  3. Simon Says Melodies"));
   Serial.println(F("  4. Goomba Amiibo Recognition"));
+  Serial.println(F("  5. Knock Detection (4 knocks)"));
   Serial.println(F("Commands: RESET, UNLOCK, LOCK, STATUS, LEDTEST, SIMONTEST"));
   Serial.println(F("System ready!"));
 }
