@@ -23,23 +23,16 @@ public:
   : _display(pinCLK, pinDIO), _pcfAddr(pcfAddr), _correct(correctCode) {}
 
   void begin() override {
-    Serial.println(F("SevenSegCodePuzzle: Starting initialization..."));
-    
+    Serial.println(F("7Seg init"));
     Wire.begin();
-    Serial.println(F("  Wire initialized"));
     
     // PCF8574 inputs with pull-ups
     Wire.beginTransmission(_pcfAddr); 
     Wire.write(0xFF); 
-    uint8_t result = Wire.endTransmission();
-    Serial.print(F("  PCF8574 setup (addr=0x"));
-    Serial.print(_pcfAddr, HEX);
-    Serial.print(F("), result="));
-    Serial.println(result);
+    Wire.endTransmission();
 
     _display.setBrightness(7,true);
     _display.clear();
-    Serial.println(F("  TM1637 display initialized"));
 
     // reset model
     _stored[0]=_stored[1]=_stored[2]=-1;
@@ -49,7 +42,7 @@ public:
     _state = State::PREVIEW;
     _solved=false;
     
-    Serial.println(F("SevenSegCodePuzzle: Initialization complete"));
+    Serial.println(F("7Seg OK"));
   }
 
   void update(uint32_t now) override {

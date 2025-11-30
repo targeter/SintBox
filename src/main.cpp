@@ -2,7 +2,6 @@
 #include <Wire.h>
 #include <Servo.h>
 #include <Adafruit_MCP23X17.h>
-#include <avr/wdt.h>
 #include "PuzzleManager.h"
 #include "SevenSegCodePuzzle.h"
 #include "TiltButtonPuzzle.h"
@@ -21,7 +20,7 @@ constexpr uint8_t MCP_LED_ADDR = 0x20;  // MCP23017 for puzzle status LEDs (A3-A
 
 // Puzzle Configuration
 constexpr int SAFE_CODE = 8888;         // Correct code for 7-segment puzzle
-constexpr size_t NUM_PUZZLES = 5;       // 7-segment + tilt sensor + simon says + NFC goomba + knock detection
+constexpr size_t NUM_PUZZLES = 5;       // 7-segment + tilt + simon + NFC + knock
 
 // Servo Configuration
 const uint8_t SERVO_PIN = 9;
@@ -58,7 +57,7 @@ void setup() {
   // Configure key switch pin
   pinMode(KEY_PIN, INPUT_PULLUP);
   
-  // Clear all hardware to remove residual state before waiting for key
+  // Initialize I2C bus
   Wire.begin();
   
   // Clear TM1637 display
@@ -69,27 +68,8 @@ void setup() {
   Wire.write(0xFF);
   Wire.endTransmission();
   
-  // Clear MCP23017 (puzzle LEDs and Simon Says)
-  // Set all pins as outputs and turn off all LEDs (active LOW, so write HIGH)
-  Wire.beginTransmission(MCP_LED_ADDR);
-  Wire.write(0x00);  // IODIRA register
-  Wire.write(0x00);  // Port A all outputs
-  Wire.endTransmission();
-  
-  Wire.beginTransmission(MCP_LED_ADDR);
-  Wire.write(0x01);  // IODIRB register
-  Wire.write(0x0F);  // Port B: B0-B3 inputs (Simon buttons), B4-B7 outputs (LEDs)
-  Wire.endTransmission();
-  
-  Wire.beginTransmission(MCP_LED_ADDR);
-  Wire.write(0x12);  // GPIOA register
-  Wire.write(0xFF);  // All LEDs off (active LOW)
-  Wire.endTransmission();
-  
-  Wire.beginTransmission(MCP_LED_ADDR);
-  Wire.write(0x13);  // GPIOB register
-  Wire.write(0xFF);  // All LEDs off (active LOW)
-  Wire.endTransmission();
+  // NOTE: MCP23017 will be properly initialized by PuzzleManager.begin()
+  // Raw register writes here were causing I2C bus corruption and crashes
   
   // Wait for key to be turned on (pin reads LOW when connected to GND)
   Serial.println(F("Waiting for key to be turned on..."));
@@ -129,19 +109,28 @@ void setup() {
 void loop() {
   uint32_t now = millis();
   
+  // Check key switch state and handle OFF state
   bool keyOn = (digitalRead(KEY_PIN) == LOW);
-
+  static bool wasKeyOn = true;  // Assume key was ON after setup completes
+  
   if (!keyOn) {
-    // Fake OFF: keep box “dead”
-    // Blink built-in LED slowly if you want an internal status indicator
+    // Key is OFF - reset state on transition, then go dormant
+    if (wasKeyOn) {
+      Serial.println(F("Key turned OFF - resetting all state"));
+      manager.resetAll();
+      sevenSegPuzzle.clearDisplay();
+      noTone(BUZZER_PIN);
+      wasKeyOn = false;
+    }
+    
+    // Stay dormant - blink LED to indicate system is alive but inactive
     digitalWrite(LED_BUILTIN, (now / 1000) % 2 ? HIGH : LOW);
-
-    // No puzzle updates, no servo moves, no sounds
-    return;
+    return;  // Skip all normal operations
   } else {
-    // Key is on: stop blinking “waiting” LED
+    // Key is ON - update state and continue normal operations
     digitalWrite(LED_BUILTIN, LOW);
-  }
+    wasKeyOn = true;
+  } 
   
   // Handle serial commands
   if (Serial.available()) {

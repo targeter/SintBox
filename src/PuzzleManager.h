@@ -37,32 +37,24 @@ public:
       _mcp.pinMode(pin, OUTPUT);
       _mcp.digitalWrite(pin, HIGH);  // Active LOW: HIGH = LED OFF
     }
-    Serial.println(F("  MCP23017 pins A3-A7 configured for puzzle LEDs"));
-    Serial.println(F("  MCP23017 pins B0-B7 available for puzzle use"));
+    Serial.println(F("  LEDs configured"));
     
     // Initialize puzzles
     for (size_t i = 0; i < N; i++) {
-      _puzzles[i]->begin();
-      Serial.print(F("  Puzzle "));
+      Serial.print(F("  P"));
       Serial.print(i);
-      Serial.print(F(" ("));
-      Serial.print(_puzzles[i]->name());
-      Serial.print(F(") -> LED A"));
-      Serial.println(i + 3);
+      Serial.print(F(": "));
+      Serial.println(_puzzles[i]->name());
+      _puzzles[i]->begin();
     }
     
     // Initialize servo
-    Serial.print(F("  Servo on pin "));
-    Serial.print(_servoPin);
-    Serial.print(F(" (lock="));
-    Serial.print(_lockedAngle);
-    Serial.print(F(", unlock="));
-    Serial.print(_unlockedAngle);
-    Serial.println(F(")"));
+    Serial.print(F("  Servo: "));
+    Serial.println(_servoPin);
     
     _servo.attach(_servoPin);
     lock();
-    Serial.println(F("PuzzleManager: System ready!"));
+    Serial.println(F("PuzzleManager: Ready!"));
   }
 
   void update(uint32_t now) {
