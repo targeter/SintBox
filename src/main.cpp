@@ -19,7 +19,7 @@ constexpr uint8_t PCF_ADDR = 0x25;      // PCF8574 for 7-segment switches (P0-P6
 constexpr uint8_t MCP_LED_ADDR = 0x20;  // MCP23017 for puzzle status LEDs (A3-A7) AND Simon Says (B0-B7)
 
 // Puzzle Configuration
-constexpr int SAFE_CODE = 8888;         // Correct code for 7-segment puzzle
+constexpr int SAFE_CODE = 9197;         // Correct code for 7-segment puzzle
 constexpr size_t NUM_PUZZLES = 5;       // 7-segment + tilt + simon + NFC + knock
 
 // Servo Configuration
