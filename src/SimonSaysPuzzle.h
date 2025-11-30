@@ -116,7 +116,8 @@ public:
     // Initialize button states
     for (int i = 0; i < 4; i++) {
       _buttonState[i] = false;
-      _lastButtonState[i] = false;
+      _lastRawState[i] = false;
+      _lastPressedState[i] = false;
       _buttonChangeTime[i] = 0;
     }
     
@@ -223,11 +224,12 @@ private:
   uint8_t _currentLength = 1;       // Current build-up length (starts at 1, grows to full sequence)
   uint8_t _timeoutCount = 0;        // Number of consecutive timeouts (resets puzzle after 4)
   
-  // Button debouncing
-  bool _buttonState[4] = {false};
-  bool _lastButtonState[4] = {false};
-  uint32_t _buttonChangeTime[4] = {0};
-  static const uint32_t DEBOUNCE_MS = 50;
+  // Button debouncing - simplified approach
+  bool _buttonState[4] = {false};           // Current debounced state
+  bool _lastRawState[4] = {false};          // Last raw read for change detection
+  bool _lastPressedState[4] = {false};      // Last state we checked for press
+  uint32_t _buttonChangeTime[4] = {0};      // Time of last state change
+  static const uint32_t DEBOUNCE_MS = 5;    // Very fast debounce - aggressive for responsiveness
   
   // Timing
   static const uint32_t NOTE_DURATION = 400;  // How long each note/LED plays
@@ -237,15 +239,29 @@ private:
 
   void _updateButtons(uint32_t now) {
     for (int i = 0; i < 4; i++) {
-      bool current = !_mcp->digitalRead(i + 8); // B0-B3 are pins 8-11, Active low (pullup)
+      bool rawState = !_mcp->digitalRead(i + 8); // B0-B3 are pins 8-11, Active low (pullup)
       
-      if (current != _lastButtonState[i]) {
-        _lastButtonState[i] = current;
+      // Detect state change
+      if (rawState != _lastRawState[i]) {
+        _lastRawState[i] = rawState;
         _buttonChangeTime[i] = now;
+        
+        // Accept button PRESS immediately (rising edge) for max responsiveness
+        if (rawState && !_buttonState[i]) {
+          _buttonState[i] = true;
+        }
       }
       
+      // Use debounce only for releases to prevent false positives
       if ((now - _buttonChangeTime[i]) >= DEBOUNCE_MS) {
-        _buttonState[i] = current;
+        bool oldState = _buttonState[i];
+        _buttonState[i] = rawState;
+        
+        // Clear the "pressed" flag when button is released
+        // This allows the same button to be pressed again
+        if (oldState && !rawState) {
+          _lastPressedState[i] = false;
+        }
       }
     }
   }
@@ -327,10 +343,9 @@ private:
   }
 
   bool _buttonPressed(int button) {
-    static bool lastState[4] = {false};
-    bool pressed = _buttonState[button] && !lastState[button];
-    lastState[button] = _buttonState[button];
-    return pressed;
+    // Detect rising edge: button is pressed now AND wasn't pressed in last check
+    // Only check the edge, don't update state here
+    return _buttonState[button] && !_lastPressedState[button];
   }
 
   void _handleButtonPress(int button, uint32_t now) {
@@ -338,10 +353,20 @@ private:
     // Use current build-up length instead of full sequence
     uint8_t sequenceLength = _currentLength;
     
+    // Mark as handled FIRST to prevent double-triggering during feedback
+    _lastPressedState[button] = true;
+    
     // Visual and audio feedback
     _playNote(button);
     _setLED(button, true);
-    delay(200); // Brief feedback
+    
+    // Continue updating buttons during feedback delay to catch releases
+    uint32_t feedbackStart = millis();
+    while (millis() - feedbackStart < 200) {
+      _updateButtons(millis());
+      delay(10); // Small delay to avoid hammering I2C
+    }
+    
     _allLedsOff();
     noTone(_buzzerPin);
     
