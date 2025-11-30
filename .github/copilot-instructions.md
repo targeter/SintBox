@@ -19,13 +19,15 @@ SintBox is an Arduino-based escape room puzzle box with multiple puzzles that mu
 ### Hardware Pin Mapping (Critical)
 ```cpp
 // Fixed pin assignments in main.cpp
-TM_CLK = 2, TM_DIO = 3         // TM1637 display
+TM_CLK = 10, TM_DIO = 11       // TM1637 display
 SERVO_PIN = 9                   // Lock servo
 TILT_PIN = 4                   // Tilt sensor
 BUZZER_PIN = 5                 // Simon Says passive buzzer
+KEY_PIN = 12                   // Key switch (power-on activation)
 MCP_LED_ADDR = 0x20            // Dual purpose: Status LEDs (A3-A7) + Simon Says (B0-B7)
 NFC_I2C_ADDR = 0x24            // PN532 NFC module (I2C-only mode)
 PCF_ADDR = 0x25                // 7-segment switches (P0-P6: segments, P7: button)
+ADXL345_ADDR = 0x53            // ADXL345 accelerometer (knock detection)
 ```
 
 ## Development Workflows
