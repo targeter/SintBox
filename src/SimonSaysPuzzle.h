@@ -100,7 +100,7 @@ public:
     _currentRound = 0;
     _sequenceIndex = 0;
     _playerIndex = 0;
-    _currentLength = 1;  // Start with just the first note
+    _currentLength = _round1Part1Length;  // Start with first part of round 1
     _timeoutCount = 0;   // Reset timeout counter
     _state = State::WAITING_TO_START;
     _stateTimer = millis();
@@ -187,13 +187,21 @@ private:
 
   // Musical note frequencies (Hz)
   enum Note {
+    NOTE_C4 = 262,
+    NOTE_D4 = 294,
+    NOTE_F4 = 349,
+    NOTE_A4 = 440,
+    NOTE_G4 = 392,
+    NOTE_Ab4 = 466,
+    NOTE_E4 = 330,
+    NOTE_B4 = 494,  // B4
     NOTE_C = 523,  // C5
     NOTE_D = 587,  // D5
     NOTE_E = 659,  // E5
     NOTE_F = 698,  // F5
     NOTE_G = 784,  // G5
     NOTE_A = 880   // A5
-  };
+  }; 
 
   // Song definitions - each array contains the sequence of buttons (0-3) to press
   // Button 0=G, Button 1=C, Button 2=E, Button 3=D (for round 1)
@@ -201,14 +209,28 @@ private:
   static const uint8_t _round2Sequence[];  // "Sinterklaas kapoentje": G G A A G E  
   static const uint8_t _round3Sequence[];  // "O, kom er eens kijken": E F E F G C
   
-  static const uint8_t _round1Length = 6;
-  static const uint8_t _round2Length = 6;
-  static const uint8_t _round3Length = 6;
+  static const uint8_t _round1Length = 11;
+  static const uint8_t _round2Length = 12;
+  static const uint8_t _round3Length = 15;
+  
+  // Part lengths for two-part structure
+  static const uint8_t _round1Part1Length = 6;
+  static const uint8_t _round1Part2Length = 5;
+  static const uint8_t _round2Part1Length = 6;
+  static const uint8_t _round2Part2Length = 6;
+  static const uint8_t _round3Part1Length = 8;
+  static const uint8_t _round3Part2Length = 7;
 
   // Note mapping for each button in each round
+  // Part 1 (first 6 notes) mappings
   static const Note _round1Notes[4];  // G, C, E, D
   static const Note _round2Notes[4];  // G, A, E, (unused)
   static const Note _round3Notes[4];  // E, F, G, C
+  
+  // Part 2 (last 6 notes) mappings - different notes for same buttons
+  static const Note _round1NotesPart2[4];
+  static const Note _round2NotesPart2[4];
+  static const Note _round3NotesPart2[4];
 
   Adafruit_MCP23X17* _mcp;
   uint8_t _buzzerPin;
@@ -418,10 +440,23 @@ private:
       
       _nextRound();
     } else {
-      // Increase build-up length for next iteration
-      _currentLength++;
-      Serial.print(F("Building up to length "));
-      Serial.println(_currentLength);
+      // Jump from part 1 to full length (part 1 + part 2)
+      uint8_t part1Length;
+      switch (_currentRound) {
+        case 0: part1Length = _round1Part1Length; break;
+        case 1: part1Length = _round2Part1Length; break;
+        case 2: part1Length = _round3Part1Length; break;
+        default: part1Length = 6; break;
+      }
+      
+      if (_currentLength == part1Length) {
+        _currentLength = fullSequenceLength;
+        Serial.println(F("Part 1 done! Now both parts..."));
+      } else {
+        _currentLength++;
+        Serial.print(F("Length "));
+        Serial.println(_currentLength);
+      }
       
       // Brief success feedback
       _playSuccessSound();
@@ -450,7 +485,14 @@ private:
 
   void _nextRound() {
     _currentRound++;
-    _currentLength = 1;  // Reset build-up length for new round
+    
+    // Reset to part 1 length for the new round
+    switch (_currentRound) {
+      case 0: _currentLength = _round1Part1Length; break;
+      case 1: _currentLength = _round2Part1Length; break;
+      case 2: _currentLength = _round3Part1Length; break;
+      default: _currentLength = 6; break;
+    }
     
     if (_currentRound >= 3) {
       _solved = true;
@@ -490,10 +532,24 @@ private:
 
   void _playNote(uint8_t button) {
     Note note;
+    // Check _playerIndex if in input phase, _sequenceIndex if in playback phase
+    uint8_t currentPosition = (_state == State::WAITING_INPUT) ? _playerIndex : _sequenceIndex;
+    
+    // Determine part boundary based on current round
+    uint8_t part1Length;
     switch (_currentRound) {
-      case 0: note = _round1Notes[button]; break;
-      case 1: note = _round2Notes[button]; break;
-      case 2: note = _round3Notes[button]; break;
+      case 0: part1Length = _round1Part1Length; break;
+      case 1: part1Length = _round2Part1Length; break;
+      case 2: part1Length = _round3Part1Length; break;
+      default: part1Length = 6; break;
+    }
+    
+    bool isPart2 = (currentPosition >= part1Length);
+    
+    switch (_currentRound) {
+      case 0: note = isPart2 ? _round1NotesPart2[button] : _round1Notes[button]; break;
+      case 1: note = isPart2 ? _round2NotesPart2[button] : _round2Notes[button]; break;
+      case 2: note = isPart2 ? _round3NotesPart2[button] : _round3Notes[button]; break;
       default: note = NOTE_C; break;
     }
     tone(_buzzerPin, note);
@@ -547,12 +603,22 @@ private:
   }
 };
 
-// Static member definitions
-const uint8_t SimonSaysPuzzle::_round1Sequence[] = {0, 1, 1, 2, 3, 3}; // G C C E D D
-const uint8_t SimonSaysPuzzle::_round2Sequence[] = {0, 0, 1, 1, 0, 2}; // G G A A G E
-const uint8_t SimonSaysPuzzle::_round3Sequence[] = {0, 1, 0, 1, 2, 3}; // E F E F G C
+// Static member definitions - arrays duplicated for two-part structure
+const uint8_t SimonSaysPuzzle::_round1Sequence[] = {0, 1, 1, 2, 3, 3, 0, 1, 1, 3, 2}; // G C C E D D (x2)
+const uint8_t SimonSaysPuzzle::_round2Sequence[] = {0, 0, 1, 1, 0, 2, 1, 1, 1, 0, 1, 1}; // G G A A G E (x2)
+const uint8_t SimonSaysPuzzle::_round3Sequence[] = {0, 0, 1, 1, 1, 2, 3, 1,     2, 2, 2, 2, 3, 2, 1}; // D D G G G A B G + A A A A B A G (8+7 notes)
 
-// Note mappings for each round (button index -> frequency)
-const SimonSaysPuzzle::Note SimonSaysPuzzle::_round1Notes[4] = {NOTE_G, NOTE_C, NOTE_E, NOTE_D};
-const SimonSaysPuzzle::Note SimonSaysPuzzle::_round2Notes[4] = {NOTE_G, NOTE_A, NOTE_E, NOTE_C}; // 4th button unused in round 2
-const SimonSaysPuzzle::Note SimonSaysPuzzle::_round3Notes[4] = {NOTE_E, NOTE_F, NOTE_G, NOTE_C};
+// Note mappings for each round - Part 1 (first 6 notes)
+const SimonSaysPuzzle::Note SimonSaysPuzzle::_round1Notes[4] = {NOTE_C4, NOTE_F4, NOTE_A4, NOTE_G4};
+const SimonSaysPuzzle::Note SimonSaysPuzzle::_round2Notes[4] = {NOTE_G4, NOTE_A4, NOTE_E4, NOTE_C};
+const SimonSaysPuzzle::Note SimonSaysPuzzle::_round3Notes[4] = {NOTE_D4, NOTE_G4, NOTE_A4, NOTE_B4};   
+
+// Note mappings for Part 2 (last 6 notes) - change these to your desired notes
+const SimonSaysPuzzle::Note SimonSaysPuzzle::_round1NotesPart2[4] = {NOTE_Ab4, NOTE_E4, NOTE_F4, NOTE_G4};
+const SimonSaysPuzzle::Note SimonSaysPuzzle::_round2NotesPart2[4] = {NOTE_D4, NOTE_F4, NOTE_E4, NOTE_C}; 
+const SimonSaysPuzzle::Note SimonSaysPuzzle::_round3NotesPart2[4] = {NOTE_D4, NOTE_G4, NOTE_A4, NOTE_B4};  // A A A A B A G     // Same as part 1 for now
+
+/* 
+D D G G G A B G.AAAABAG 
+G G C C C D E C DDDDED C
+*/
