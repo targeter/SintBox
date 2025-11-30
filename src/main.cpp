@@ -49,6 +49,36 @@ Puzzle* puzzles[NUM_PUZZLES] = { &sevenSegPuzzle, &tiltPuzzle, &simonPuzzle, &nf
 // Puzzle Manager with MCP23017-based LED control and servo
 PuzzleManager<NUM_PUZZLES> manager(MCP_LED_ADDR, SERVO_PIN, LOCK_ANGLE, UNLOCK_ANGLE, true);
 
+
+
+
+// Startup jingle function
+void playStartupJingle() {
+  // Notes: D D G G G A B G
+  const int D4=294;
+  const int G4=392;
+  const int A4=440;
+  const int B4=494;
+
+  const int zieDeMaanSchijnt[8][3] = {
+    {D4, 240, 60},
+    {D4, 240, 60},
+    {G4, 480, 120},
+    {G4, 480, 120},
+    {G4, 240, 60},
+    {A4, 240, 60},
+    {B4, 480, 120},
+    {G4, 480, 120}
+  };
+  
+  for (int i = 0; i < 8; i++) {
+    tone(BUZZER_PIN, zieDeMaanSchijnt[i][0]);
+    delay(zieDeMaanSchijnt[i][1]/2);
+    noTone(BUZZER_PIN);
+    delay(zieDeMaanSchijnt[i][2]/2);
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -56,6 +86,9 @@ void setup() {
   
   // Configure key switch pin
   pinMode(KEY_PIN, INPUT_PULLUP);
+  
+  // Configure buzzer pin for startup jingle
+  pinMode(BUZZER_PIN, OUTPUT);
   
   // Initialize I2C bus
   Wire.begin();
@@ -80,29 +113,17 @@ void setup() {
   }
   Serial.println(F("Key detected! Initializing system..."));
   digitalWrite(LED_BUILTIN, LOW);
-  
+ 
   manager.attach(puzzles);
   manager.begin();
   
   // Provide MCP reference to Simon Says puzzle after manager initializes it
-  Serial.print(F("Setting Simon Says MCP: "));
   Adafruit_MCP23X17* mcpPtr = manager.getMCP();
-  Serial.println(mcpPtr != nullptr ? F("Valid pointer") : F("NULL pointer"));
   simonPuzzle.setMCP(mcpPtr);
-  
-  // Manually call Simon Says begin() now that MCP is available
-  Serial.println(F("Calling Simon Says begin() with MCP available"));
   simonPuzzle.begin();
   
-  Serial.print(F("Initialized "));
-  Serial.print(NUM_PUZZLES);
-  Serial.println(F(" puzzles:"));
-  Serial.println(F("  1. 7-Segment Code Entry"));
-  Serial.println(F("  2. Tilt Sensor Hold"));
-  Serial.println(F("  3. Simon Says Melodies"));
-  Serial.println(F("  4. Goomba Amiibo Recognition"));
-  Serial.println(F("  5. Knock Detection (4 knocks)"));
-  Serial.println(F("Commands: RESET, UNLOCK, LOCK, STATUS, LEDTEST, SIMONTEST"));
+  // Play startup jingle
+  playStartupJingle();
   Serial.println(F("System ready!"));
 }
 
@@ -127,9 +148,12 @@ void loop() {
     digitalWrite(LED_BUILTIN, (now / 1000) % 2 ? HIGH : LOW);
     return;  // Skip all normal operations
   } else {
-    // Key is ON - update state and continue normal operations
+    // Key is ON - check for OFF->ON transition and play jingle
+    if (!wasKeyOn) {
+      playStartupJingle();
+      wasKeyOn = true;
+    }
     digitalWrite(LED_BUILTIN, LOW);
-    wasKeyOn = true;
   } 
   
   // Handle serial commands
