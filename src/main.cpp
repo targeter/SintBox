@@ -129,13 +129,18 @@ void setup() {
 void loop() {
   uint32_t now = millis();
   
-  // Check if key has been turned off - trigger full reset
-  if (digitalRead(KEY_PIN) == HIGH) {
-    Serial.println(F("*** Key turned off - resetting system ***"));
-    Serial.flush();  // Ensure message is sent before reset
-    delay(100);
-    wdt_enable(WDTO_15MS);  // Enable watchdog timer with 15ms timeout
-    while(1) {}  // Wait for watchdog to reset the system
+  bool keyOn = (digitalRead(KEY_PIN) == LOW);
+
+  if (!keyOn) {
+    // Fake OFF: keep box “dead”
+    // Blink built-in LED slowly if you want an internal status indicator
+    digitalWrite(LED_BUILTIN, (now / 1000) % 2 ? HIGH : LOW);
+
+    // No puzzle updates, no servo moves, no sounds
+    return;
+  } else {
+    // Key is on: stop blinking “waiting” LED
+    digitalWrite(LED_BUILTIN, LOW);
   }
   
   // Handle serial commands
