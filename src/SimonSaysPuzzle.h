@@ -58,6 +58,7 @@ public:
         // Check if buttons 1, 2, and 4 are pressed simultaneously to start the game
         if (_buttonState[0] && _buttonState[1] && _buttonState[3]) { // Buttons 1, 2, 4 (indices 0, 1, 3)
           Serial.println(F("Buttons 1, 2, 4 pressed simultaneously - Simon Says starting! Get ready..."));
+          _playStartChime();
           _state = State::IDLE;
           _stateTimer = now;
           return; // Exit early to avoid processing other states
@@ -488,6 +489,17 @@ private:
     delay(300);
     tone(_buzzerPin, 150);
     delay(300);
+    noTone(_buzzerPin);
+  }
+
+  void _playStartChime() {
+    // Short ascending chime to indicate game start
+    tone(_buzzerPin, NOTE_E);
+    delay(80);
+    tone(_buzzerPin, NOTE_G);
+    delay(80);
+    tone(_buzzerPin, NOTE_C + 261); // C6 (higher octave)
+    delay(120);
     noTone(_buzzerPin);
   }
 
