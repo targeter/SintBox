@@ -20,7 +20,7 @@ public:
    */
   KnockDetectionPuzzle(
     uint8_t requiredKnocks = 4,
-    float knockThreshold = 4.0,
+    float knockThreshold = 3.0,
     uint32_t knockWindowMs = 2000,
     uint32_t quietPeriodMs = 50
   )
@@ -50,7 +50,9 @@ public:
     Serial.print(_requiredKnocks);
     Serial.print(F(" knocks within "));
     Serial.print(_knockWindowMs);
-    Serial.println(F("ms"));
+    Serial.print(F(" ms, threshold "));
+    Serial.print(_knockThreshold, 2);
+    Serial.println(F(" m/s^2"));
     
     _state = State::IDLE;
   }

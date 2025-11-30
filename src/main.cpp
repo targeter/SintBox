@@ -41,7 +41,7 @@ SevenSegCodePuzzle sevenSegPuzzle(TM_CLK, TM_DIO, PCF_ADDR, SAFE_CODE);
 TiltButtonPuzzle tiltPuzzle(TILT_PIN, false, 100, 10000);  // activeLow=false, debounce=100ms, hold=10s
 SimonSaysPuzzle simonPuzzle(nullptr, BUZZER_PIN);          // MCP will be provided after manager initialization
 NFCAmiiboPuzzle nfcPuzzle;                                 // Goomba amiibo recognition (I2C only)
-KnockDetectionPuzzle knockPuzzle(4, 4.0, 2000, 100);       // 4 knocks, threshold=4.0 m/s^2, 2s window, 100ms quiet period
+KnockDetectionPuzzle knockPuzzle(4, 3.5, 3000, 50);       // 4 knocks, threshold=3.5 m/s^2, 3s window, 50ms quiet period
 
 // Puzzle Array (order determines LED assignment on MCP23017: A3, A4, A5, A6, A7...)
 Puzzle* puzzles[NUM_PUZZLES] = { &sevenSegPuzzle, &tiltPuzzle, &simonPuzzle, &nfcPuzzle, &knockPuzzle };
