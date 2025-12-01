@@ -10,8 +10,8 @@ class PuzzleManager {
 public:
   // Constructor for MCP23017-based puzzle status LEDs and servo control
   // Uses pins A3-A7 for 5 puzzle status LEDs, remaining pins available for future puzzles
-  PuzzleManager(uint8_t mcpAddr, uint8_t servoPin, uint8_t lockedAngle, uint8_t unlockedAngle, bool useMCP23017)
-  : _servoPin(servoPin), _lockedAngle(lockedAngle), _unlockedAngle(unlockedAngle), _mcpAddr(mcpAddr) {
+  PuzzleManager(uint8_t mcpAddr, uint8_t servoPin, uint8_t lockedAngle, uint8_t unlockedAngle, bool useMCP23017, uint8_t buzzerPin = 0)
+  : _servoPin(servoPin), _lockedAngle(lockedAngle), _unlockedAngle(unlockedAngle), _mcpAddr(mcpAddr), _buzzerPin(buzzerPin) {
     static_assert(N <= 5, "Maximum 5 puzzles supported (MCP23017 pins A3-A7)");
   }
 
@@ -73,6 +73,12 @@ public:
         Serial.print(_puzzles[i]->name());
         Serial.print(F("): "));
         Serial.println(solved ? F("SOLVED!") : F("Reset"));
+        
+        // Play chime when puzzle is solved
+        if (solved && !prevSolved[i]) {
+          playPuzzleSolvedChime();
+        }
+        
         prevSolved[i] = solved;
       }
 
@@ -176,6 +182,18 @@ public:
   }
 
 private:
+  void playPuzzleSolvedChime() {
+    if (_buzzerPin == 0) return;  // No buzzer configured
+    
+    // Play a pleasant ascending chime: C5 -> E5 -> G5
+    tone(_buzzerPin, 523);  // C5
+    delay(100);
+    tone(_buzzerPin, 659);  // E5
+    delay(100);
+    tone(_buzzerPin, 784);  // G5
+    delay(150);
+    noTone(_buzzerPin);
+  }
   void setLED(size_t index, bool state) {
     if (index >= 5) return;   // Only 5 LEDs supported (A3-A7)
     
@@ -188,11 +206,12 @@ private:
   Puzzle* _puzzles[N]{};
   uint8_t _servoPin;
   uint8_t _lockedAngle, _unlockedAngle;
+  uint8_t _mcpAddr;
+  uint8_t _buzzerPin;
   uint8_t _currentAngle = 255; // Invalid initial value to force first move
   bool _allSolved = false;
   Servo _servo;
   
   // MCP23017 for puzzle status LEDs and future puzzle I/O
-  uint8_t _mcpAddr;
   Adafruit_MCP23X17 _mcp;
 };

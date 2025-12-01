@@ -47,7 +47,7 @@ KnockDetectionPuzzle knockPuzzle(4, 3.5, 3000, 50);       // 4 knocks, threshold
 Puzzle* puzzles[NUM_PUZZLES] = { &sevenSegPuzzle, &tiltPuzzle, &simonPuzzle, &nfcPuzzle, &knockPuzzle };
 
 // Puzzle Manager with MCP23017-based LED control and servo
-PuzzleManager<NUM_PUZZLES> manager(MCP_LED_ADDR, SERVO_PIN, LOCK_ANGLE, UNLOCK_ANGLE, true);
+PuzzleManager<NUM_PUZZLES> manager(MCP_LED_ADDR, SERVO_PIN, LOCK_ANGLE, UNLOCK_ANGLE, true, BUZZER_PIN);
 
 
 
