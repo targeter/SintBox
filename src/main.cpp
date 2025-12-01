@@ -197,6 +197,9 @@ void loop() {
     } else if (command == "SIMONTEST") {
       Serial.println(F("*** Testing Simon Says LEDs ***"));
       simonPuzzle.testLEDs();
+    } else if (command == "SIMONCHEAT") {
+      Serial.println(F("*** Simon Says cheatcode activated ***"));
+      simonPuzzle.cheatSolve();
     } else if (command.length() > 0) {
       Serial.print(F("Unknown command: "));
       Serial.println(command);
@@ -206,4 +209,16 @@ void loop() {
   
   // Update puzzle manager
   manager.update(now);
+  
+  // Simon Says cheatcode: buttons 0+3 pressed together (only during gameplay input)
+  if (!simonPuzzle.isSolved() && simonPuzzle.isWaitingForInput()) {
+    static bool cheatUsed = false;
+    if (!cheatUsed) {
+      Adafruit_MCP23X17* m = manager.getMCP();
+      if (!m->digitalRead(8) && !m->digitalRead(10)) {
+        simonPuzzle.cheatSolve();
+        cheatUsed = true;
+      }
+    }
+  }
 }

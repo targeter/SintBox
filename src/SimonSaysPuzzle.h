@@ -134,6 +134,19 @@ public:
     _mcp = mcp;
   }
 
+  // Cheatcode activation - called from main loop
+  void cheatSolve() {
+    if (!_solved) {
+      _solved = true;
+      Serial.println(F("Simon Says puzzle solved via cheatcode"));
+    }
+  }
+
+  // Check if puzzle is waiting for player input (safe time for cheatcode)
+  bool isWaitingForInput() const {
+    return _state == State::WAITING_INPUT;
+  }
+
   // Test all Simon Says LEDs in sequence
   void testLEDs() {
     if (!_mcpInitialized) {
@@ -251,7 +264,7 @@ private:
   bool _lastRawState[4] = {false};          // Last raw read for change detection
   bool _lastPressedState[4] = {false};      // Last state we checked for press
   uint32_t _buttonChangeTime[4] = {0};      // Time of last state change
-  static const uint32_t DEBOUNCE_MS = 5;    // Very fast debounce - aggressive for responsiveness
+  static const uint32_t DEBOUNCE_MS = 10;    // Very fast debounce - aggressive for responsiveness
   
   // Timing
   static const uint32_t NOTE_DURATION = 400;  // How long each note/LED plays
