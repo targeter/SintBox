@@ -99,7 +99,14 @@ public:
     if (!_allSolved && solvedCount == N) {
       _allSolved = true;
       Serial.println(F("*** ALL PUZZLES SOLVED - UNLOCKING BOX! ***"));
+      
+      // Wait for last puzzle chime to finish
+      delay(350);
+      
       unlock();
+      
+      // Play victory jingle after unlocking
+      playVictoryJingle();
     }
   }
 
@@ -193,6 +200,35 @@ private:
     tone(_buzzerPin, 784);  // G5
     delay(150);
     noTone(_buzzerPin);
+  }
+  
+  void playVictoryJingle() {
+    if (_buzzerPin == 0) return;  // No buzzer configured
+    
+    // Play startup jingle: "Zie de maan schijnt door de bomen"
+    // Notes: D D G G G A B G
+    const int D4 = 294;
+    const int G4 = 392;
+    const int A4 = 440;
+    const int B4 = 494;
+
+    const int melody[8][3] = {
+      {D4, 240, 60},
+      {D4, 240, 60},
+      {G4, 480, 120},
+      {G4, 480, 120},
+      {G4, 240, 60},
+      {A4, 240, 60},
+      {B4, 480, 120},
+      {G4, 480, 120}
+    };
+    
+    for (int i = 0; i < 8; i++) {
+      tone(_buzzerPin, melody[i][0]);
+      delay(melody[i][1] / 2);
+      noTone(_buzzerPin);
+      delay(melody[i][2] / 2);
+    }
   }
   void setLED(size_t index, bool state) {
     if (index >= 5) return;   // Only 5 LEDs supported (A3-A7)
